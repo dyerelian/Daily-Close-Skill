@@ -95,6 +95,38 @@ layout is `close-day/SKILL.md` and `close-day/scripts/...`, then invoke `/close-
 > the original author's machine (workbook location, sibling-skill scripts, Python interpreter).
 > Adjust these for your environment before use.
 
+## Sync model (junction)
+
+On the author's machine this repo is the **single source of truth**, and the live skill under
+`~/.claude/skills/close-day` is a **directory junction** pointing at the repo root — so editing in
+either place touches the same files, with no copying and no drift.
+
+```
+~/.claude/skills/close-day  ──junction──▶  <repo root>
+```
+
+Workflow: edit wherever's convenient, then commit/push from the repo:
+
+```powershell
+cd ~/repos/Daily-Close-Skill
+git add -A; git commit -m "..."; git push
+```
+
+(Re)create the junction on this machine — or on a fresh clone — with:
+
+```powershell
+$live = Join-Path $env:USERPROFILE '.claude\skills\close-day'
+$repo = $PSScriptRoot   # the cloned repo's root
+if (Test-Path $live) { Remove-Item $live -Recurse -Force }
+New-Item -ItemType Junction -Path $live -Target $repo | Out-Null
+```
+
+Notes:
+- Directory junctions need **no admin rights or Developer Mode** on Windows and are transparent to
+  Claude Code, which reads `SKILL.md`/`scripts/` and ignores the repo's `README.md`/`.gitignore`.
+- Junctions are local to a machine — they don't travel with the repo. On a new machine, clone then
+  run the snippet above (or just copy the contents into `~/.claude/skills/close-day/`).
+
 ## Attribution (vendored code)
 
 `scripts/vendor/` bundles [`ccl_chromium_reader`](https://github.com/cclgroupltd/ccl_chromium_reader)
