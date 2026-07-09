@@ -59,6 +59,13 @@ EXAMPLE_DATA = {
         "Inbox back to zero",
     ],
     "top_actions": [
+        {
+            "text": "Send out tomorrow's agendas & pre-reads (24h ahead)",
+            "sub_bullets": [
+                "1:1 with Mariyo",
+                "Team backlog refinement",
+            ],
+        },
         "A-012 Draft funnel one-pager",
         "A-031 Send roadmap input to Mariyo",
         "A-044 Review vendor SOW",
@@ -66,6 +73,11 @@ EXAMPLE_DATA = {
     "other_actions": [
         "A-051 Book travel for the offsite",
         "A-052 Reply to finance on the PO",
+    ],
+    "meetings": [
+        {"start": "2026-06-27T09:30", "subject": "Project Prioritization Weekly Update"},
+        {"start": "2026-06-27T10:00", "subject": "1:1 with Mariyo", "location": "Motor Sports"},
+        {"start": "2026-06-27T14:00", "subject": "Team backlog refinement"},
     ],
     "agendas": [
         {
@@ -118,6 +130,104 @@ def bullet_block(parts: list[str], heading: str, values: object) -> None:
         parts.append(ac.simple_paragraph(item, bullet=True))
 
 
+def leveled_bullet(value: str, level: int = 0) -> str:
+    """A bullet paragraph at an explicit list level (0 = top, 1 = sub-bullet)."""
+    p_props = [
+        '<w:spacing w:after="120"/>',
+        f'<w:numPr><w:ilvl w:val="{level}"/><w:numId w:val="1"/></w:numPr>',
+    ]
+    return f"<w:p><w:pPr>{''.join(p_props)}</w:pPr>{ac.run_xml(ac.text(value))}</w:p>"
+
+
+def nested_bullet_block(parts: list[str], heading: str, values: object) -> None:
+    """Top-level bullets that may each carry a sub-bulleted list.
+
+    Each entry is either a plain string (a single top-level bullet) or a dict
+    ``{"text"/"action"/"label": ..., "sub_bullets": [...]}`` whose sub-bullets
+    render one indent level deeper. Used for Top Action Items so the "send out
+    next-day agendas" task can list the agendas to prep as sub-bullets.
+    """
+    block: list[str] = []
+    for entry in values or []:
+        if isinstance(entry, dict):
+            label = ac.text(entry.get("text") or entry.get("action") or entry.get("label")).strip()
+            subs = [ac.text(s) for s in (entry.get("sub_bullets") or []) if ac.text(s).strip()]
+            if not label and not subs:
+                continue
+            if label:
+                block.append(leveled_bullet(label, 0))
+            for sub in subs:
+                block.append(leveled_bullet(sub, 1))
+        else:
+            label = ac.text(entry).strip()
+            if label:
+                block.append(leveled_bullet(label, 0))
+    if not block:
+        return
+    parts.append(ac.simple_paragraph(heading, style="Heading1"))
+    parts.extend(block)
+
+
+def meetings_block(parts: list[str], values: object) -> None:
+    """Plan-day meeting schedule overview (times + titles), rendered as bullets.
+
+    Each entry is a string (already formatted) or a dict with ``time``/``start``,
+    ``title``/``subject``, and optional ``location``. A ``YYYY-MM-DDTHH:MM`` start
+    is trimmed to ``HH:MM``.
+    """
+    lines: list[str] = []
+    for meeting in values or []:
+        if isinstance(meeting, dict):
+            when = ac.text(meeting.get("time") or meeting.get("start")).strip()
+            if "T" in when:
+                when = when.split("T", 1)[1][:5]
+            title = ac.text(meeting.get("title") or meeting.get("subject")).strip()
+            location = ac.text(meeting.get("location")).strip()
+            line = " — ".join(part for part in (when, title) if part)
+            if location:
+                line += f"  ({location})"
+        else:
+            line = ac.text(meeting).strip()
+        if line:
+            lines.append(line)
+    if not lines:
+        return
+    parts.append(ac.simple_paragraph("Meeting Schedule", style="Heading1"))
+    for line in lines:
+        parts.append(leveled_bullet(line, 0))
+
+
+def numbering_xml() -> str:
+    """Two-level bullet numbering (level 0 + sub-bullet level 1) on numId 1.
+
+    Overrides the agenda-creator's single-level numbering so Top Action Items can
+    nest agenda sub-bullets; level 0 stays identical, so reused agenda rendering
+    (which only uses ilvl 0 on numId 1) is unaffected.
+    """
+    return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="0">
+    <w:multiLevelType w:val="hybridMultilevel"/>
+    <w:lvl w:ilvl="0">
+      <w:start w:val="1"/>
+      <w:numFmt w:val="bullet"/>
+      <w:lvlText w:val="&#8226;"/>
+      <w:lvlJc w:val="left"/>
+      <w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr>
+    </w:lvl>
+    <w:lvl w:ilvl="1">
+      <w:start w:val="1"/>
+      <w:numFmt w:val="bullet"/>
+      <w:lvlText w:val="&#9702;"/>
+      <w:lvlJc w:val="left"/>
+      <w:pPr><w:ind w:left="1440" w:hanging="360"/></w:pPr>
+    </w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>
+</w:numbering>
+"""
+
+
 def daily_plan_body(data: dict) -> str:
     parts: list[str] = []
 
@@ -139,8 +249,9 @@ def daily_plan_body(data: dict) -> str:
         parts.append(ac.simple_paragraph(mit))
 
     bullet_block(parts, "Daily Big 3", data.get("daily_big_3"))
-    bullet_block(parts, "Top Action Items", data.get("top_actions"))
+    nested_bullet_block(parts, "Top Action Items", data.get("top_actions"))
     bullet_block(parts, "Other Action Items", data.get("other_actions"))
+    meetings_block(parts, data.get("meetings"))
 
     agendas = data.get("agendas") or []
     if agendas:
@@ -178,7 +289,7 @@ def create_docx(data: dict, output_path: Path) -> None:
         docx.writestr("word/_rels/document.xml.rels", ac.document_rels_xml())
         docx.writestr("word/document.xml", document_xml(data))
         docx.writestr("word/styles.xml", ac.styles_xml())
-        docx.writestr("word/numbering.xml", ac.numbering_xml())
+        docx.writestr("word/numbering.xml", numbering_xml())
 
 
 def load_data(args: argparse.Namespace) -> dict:

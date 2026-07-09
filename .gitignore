@@ -1,0 +1,7 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Local scratch / generated artifacts
+*.tmp
