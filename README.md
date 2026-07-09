@@ -75,8 +75,9 @@ Agendas go out **24 hours ahead**, so the close distinguishes two days:
 This skill orchestrates rather than re-implements, and relies on companion pieces on the host machine:
 
 - **Sibling Claude Code skills** (referenced by absolute path in `SKILL.md`):
-  - `add-gtd-items` — the workbook writer (`Add-GtdItems.ps1`), the workbook schema reference, and
-    the `canonical-project-page.md` reference used to refresh Confluence pages.
+  - `add-gtd-items` — the workbook writer (`Add-GtdItems.ps1`) and the workbook schema reference.
+  - `source-of-truth` — owns `references/canonical-project-page.md`, the create/update/close
+    mechanics used to refresh, create, or move a project's canonical Confluence page.
   - `agenda-creator` — `create_agenda_docx.py`, whose OpenXML helpers `create_daily_plan_docx.py`
     imports so agenda rendering stays identical. **The Daily Plan renderer will not run without it.**
 - **Tooling:** Windows + a locally installed/configured Outlook (late-bound COM; `win32com`/

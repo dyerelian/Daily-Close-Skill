@@ -17,6 +17,7 @@ This skill **orchestrates**; it does not re-implement the writer or the doc rend
 - Writer: `C:\Users\E724101\.claude\skills\add-gtd-items\scripts\Add-GtdItems.ps1`
 - Columns, `Lists` vocabulary, defaults, payload schema: `C:\Users\E724101\.claude\skills\add-gtd-items\references\workbook-schema.md`
 - External source conventions (narrow, recent, read-only): `C:\Users\E724101\.claude\skills\agenda-creator\references\context-sources.md`
+- Canonical Confluence page mechanics (create / update / close): `C:\Users\E724101\.claude\skills\source-of-truth\references\canonical-project-page.md`
 - Tomorrow's meetings: `C:\Users\E724101\.claude\skills\close-day\scripts\Get-OutlookMeetings.ps1`
 - Today's sent mail (for waiting-for sweep): `C:\Users\E724101\.claude\skills\close-day\scripts\Get-OutlookSentItems.ps1`
 - Daily Plan renderer: `C:\Users\E724101\.claude\skills\close-day\scripts\create_daily_plan_docx.py`
@@ -86,6 +87,11 @@ Compute, relative to today:
   a `next_actions` item scheduled for the target day (see Phase 4 → Follow-ups).
 - **Unprocessed inbox** — `Inbox` rows with `Processed? = No`.
 - **Projects needing review** — open projects with an old `Last Reviewed` or no open next action.
+- **Canonical page coverage / staleness** — from the `Projects` sheet, flag (a) active
+  (non-done) projects whose `notes` has **no** `Canonical page:` URL (missing a source-of-truth
+  page), and (b) projects with a material change today whose canonical page's latest `Updates`
+  entry predates that change (stale). These feed the "Canonical page coverage" proposal line
+  (Phase 4); creating/refreshing uses the `source-of-truth` skill in Phase 5 step 3b.
 - **Completed-today candidates** — actions Dan's notes or the source sweep show as finished.
 - **Today's committed priorities** — `Next Actions` with `Scheduled Date` = today (the items the
   *previous* close scheduled as today's priorities). Split them by `Status`:
@@ -259,13 +265,17 @@ Render a clean, sectioned summary and wait for approval. Dan can edit or drop an
 - **Project reviews** — projects to stamp `Last Reviewed = today`.
 - **Completed projects** — projects set to a done status get their canonical Confluence
   page moved from the `Active Projects` to the `Closed Projects` index list (and page
-  Status flipped to Closed). See `add-gtd-items/references/canonical-project-page.md`.
+  Status flipped to Closed). See the `source-of-truth` skill's
+  `references/canonical-project-page.md`.
 - **Canonical page updates** — every project with a **material change today** (status,
   a decision, a milestone reached, a new risk/open question, or a new next-action /
   waiting-for tied to it) gets its canonical Confluence page refreshed to match —
   Overview table, Milestones, Decisions, and the reverse-chronological Updates log —
-  because Confluence is the public source of truth. Merge, never overwrite. See
-  `add-gtd-items/references/canonical-project-page.md` → "Updating an existing page."
+  because Confluence is the public source of truth. Merge, never overwrite. See the
+  `source-of-truth` skill's `references/canonical-project-page.md` → "Updating an existing page."
+- **Canonical page coverage** — active projects flagged in Phase 1 as **missing** a
+  canonical page (propose creating one via the `source-of-truth` skill) and any pages flagged
+  **stale** (propose a refresh). Skip this line if none were flagged.
 - **Daily log preview** — the markdown (today) that will be saved.
 - **Daily Plan preview** — the quote, summary, MIT, Big 3, action lists (with the send-out day
   agendas as titles-only sub-bullets under the first Top Action Item), the target day's **Meeting
@@ -298,12 +308,15 @@ Render a clean, sectioned summary and wait for approval. Dan can edit or drop an
 
    **3b. Refresh canonical Confluence pages.** For each project in the approved proposal
    with a material change today (and for completed projects, the Active→Closed move),
-   update its canonical page per
-   `add-gtd-items/references/canonical-project-page.md` → "Updating an existing page":
+   update its canonical page per the `source-of-truth` skill's
+   `references/canonical-project-page.md` → "Updating an existing page":
    read the page ID from the project's `notes` (`Canonical page: <url>`),
    `confluence_get_page`, **merge** the change into the Overview / Milestones / Decisions
-   / Updates sections (never blank a section), then `confluence_update_page`. This is the
-   only external write in the close-out, and it happens only after the single approval gate.
+   / Updates sections (never blank a section), then `confluence_update_page`. For any
+   **missing-page** project approved in the "Canonical page coverage" line, create its page
+   first (same skill → "Creating a page for a new project") and store the URL in its `notes`
+   (column O) via the `add-gtd-items` writer. This is the only external write in the
+   close-out, and it happens only after the single approval gate.
 
 4. **Save the daily log** with the `Write` tool to:
    `C:\Users\E724101\OneDrive - Automobile Club of Southern California\Daily Plan\GTD Daily Logs\EOD YYYY-MM-DD.md`
