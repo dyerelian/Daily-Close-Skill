@@ -133,3 +133,27 @@ $repo = (Get-Location).Path
 if (Test-Path $live) { Remove-Item $live -Recurse -Force }
 New-Item -ItemType Junction -Path $live -Target $repo | Out-Null
 ```
+
+## Future Enhancements
+
+These are not required for the current v1 flow, but they should be considered before the next
+public onboarding pass.
+
+- **Cleaner first-run instructions.** The current README assumes the user already has Codex
+  installed, understands what a skill is, has a local skills folder, and is comfortable creating a
+  junction manually. A future update should add a true "from zero" setup path with prerequisites,
+  expected folder locations, Windows/macOS/Linux variants, and a bootstrap script that creates
+  missing folders, checks Python/Git availability, installs the skill, and then runs validation.
+- **LLM-model-agnostic onboarding.** The onboarding wizard should not be Codex-specific. It should
+  keep the prompt/answer schema portable and support OpenAI/Codex, Claude, Gemini, Grok, and local
+  LLMs through a provider-neutral flow. A future version could expose `questions`, `run`, and
+  `validate` as the stable contract, then add provider adapters for CLI, API, or local endpoint
+  use without changing module manifests.
+- **AI-suggested: outcome-based module selection.** Instead of asking users to pick modules from a
+  technical list first, the wizard should start with user outcomes such as "capture tasks",
+  "summarize meetings", "update CRM", or "prepare tomorrow's plan." It can then recommend modules,
+  show the required data sources, and let the user accept or remove each recommendation.
+- **AI-suggested: onboarding readiness report with permission review.** After setup, the wizard
+  should generate a plain-English readiness report that lists enabled modules, missing connectors,
+  files created, read permissions, write targets, and rollback/uninstall steps. This gives users a
+  final security and privacy checkpoint before any daily close-out run.
