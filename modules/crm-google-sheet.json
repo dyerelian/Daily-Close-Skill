@@ -1,0 +1,86 @@
+{
+  "id": "crm-google-sheet",
+  "display_name": "CRM Google Sheet",
+  "description": "Generate a Google-Sheets-compatible CRM workbook and Gmail-driven update proposals; live sheet writes are gated.",
+  "required_connectors": [
+    "gmail"
+  ],
+  "read_sources": [
+    {
+      "type": "gmail",
+      "mode": "read-only"
+    },
+    {
+      "type": "xlsx_or_csv",
+      "path_config_key": "crm.workbook_path",
+      "mode": "read-only unless approved"
+    }
+  ],
+  "write_targets": [
+    {
+      "type": "local_xlsx_or_csv",
+      "path_config_key": "crm.workbook_path",
+      "requires_approval": true
+    },
+    {
+      "type": "google_sheet",
+      "requires_approval": true,
+      "requires_connector": "google-drive-or-sheets"
+    }
+  ],
+  "config_schema": {
+    "type": "object",
+    "required": [
+      "enabled",
+      "workbook_path",
+      "proposal_output_dir"
+    ],
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "workbook_path": {
+        "type": "string"
+      },
+      "proposal_output_dir": {
+        "type": "string"
+      },
+      "allow_live_sheet_writes": {
+        "type": "boolean"
+      }
+    }
+  },
+  "onboarding": {
+    "question": "Should close-day create or connect a CRM for account/contact/follow-up proposals?",
+    "default_for_profiles": [
+      "solo_operator"
+    ],
+    "setup_questions": [
+      "Do you already have a CRM workbook or Google Sheet?",
+      "If not, should setup create the close-day CRM workbook template?",
+      "Which customer, prospect, partner, and program keywords should seed Gmail searches?",
+      "Should CRM updates stay proposal-only or allow sheet updates after approval?"
+    ],
+    "connector_probes": [
+      "Check Gmail connector when Gmail seeding is enabled.",
+      "Check workbook path exists when an existing CRM is selected."
+    ],
+    "required_artifacts": [
+      "CRM workbook or Google Sheet with Accounts, Contacts, Interactions, FollowUps, and Lists."
+    ],
+    "optional_artifacts": [
+      "Gmail seed queries.",
+      "Dry-run CRM proposal output folder."
+    ],
+    "config_keys": [
+      "crm.workbook_path",
+      "crm.csv_seed_dir",
+      "crm.proposal_output_dir",
+      "crm.gmail_seed_queries",
+      "modules.crm-google-sheet.enabled",
+      "modules.crm-google-sheet.allow_live_sheet_writes"
+    ]
+  },
+  "enabled_by_default": true,
+  "proposal_output_type": "crm_update_proposal"
+}

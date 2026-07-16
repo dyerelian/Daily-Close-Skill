@@ -1,0 +1,61 @@
+{
+  "id": "gmail-sweep",
+  "display_name": "Gmail Sweep",
+  "description": "Read recent Gmail messages and threads to find action items, waiting-for entries, and CRM evidence.",
+  "required_connectors": [
+    "gmail"
+  ],
+  "read_sources": [
+    {
+      "type": "gmail",
+      "mode": "read-only"
+    }
+  ],
+  "write_targets": [],
+  "config_schema": {
+    "type": "object",
+    "required": [
+      "enabled",
+      "account"
+    ],
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "account": {
+        "type": "string"
+      },
+      "default_query": {
+        "type": "string"
+      },
+      "max_results_per_query": {
+        "type": "integer"
+      }
+    }
+  },
+  "onboarding": {
+    "question": "Should close-day use Gmail as a read-only source for actions, waiting-for items, and CRM evidence?",
+    "default_for_profiles": [
+      "solo_operator"
+    ],
+    "setup_questions": [
+      "Which Gmail account should be used?",
+      "How far back should routine sweeps search?"
+    ],
+    "connector_probes": [
+      "Check Gmail connector profile/account when running inside Codex."
+    ],
+    "required_artifacts": [],
+    "optional_artifacts": [
+      "Seed queries for important accounts, customers, prospects, and partners."
+    ],
+    "config_keys": [
+      "connectors.gmail.account",
+      "modules.gmail-sweep.enabled",
+      "modules.gmail-sweep.account",
+      "modules.gmail-sweep.default_query"
+    ]
+  },
+  "enabled_by_default": true,
+  "proposal_output_type": "gmail_capture_candidates"
+}

@@ -1,0 +1,70 @@
+{
+  "id": "gtd-workbook",
+  "display_name": "GTD Workbook",
+  "description": "Read and, after approval, update a GTD workbook through a configured writer script.",
+  "required_connectors": [
+    "local:file-system"
+  ],
+  "read_sources": [
+    {
+      "type": "xlsx",
+      "path_config_key": "paths.gtd_workbook",
+      "mode": "read-only during sweep"
+    }
+  ],
+  "write_targets": [
+    {
+      "type": "xlsx",
+      "path_config_key": "paths.gtd_workbook",
+      "requires_approval": true
+    }
+  ],
+  "config_schema": {
+    "type": "object",
+    "required": [
+      "enabled"
+    ],
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "workbook_path": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "allow_writes": {
+        "type": "boolean"
+      }
+    }
+  },
+  "onboarding": {
+    "question": "What task/GTD system should close-day use?",
+    "default_for_profiles": [
+      "solo_operator"
+    ],
+    "setup_questions": [
+      "Do you already have a GTD workbook or Google Sheet?",
+      "If not, should setup create a local GTD workbook template?",
+      "Should close-day ever write task updates after approval?"
+    ],
+    "connector_probes": [
+      "Check the configured workbook path exists when an existing workbook is selected."
+    ],
+    "required_artifacts": [
+      "GTD workbook or Sheet with Next Actions, Waiting For, Inbox, Projects, and Lists."
+    ],
+    "optional_artifacts": [
+      "add-gtd-items compatible writer script."
+    ],
+    "config_keys": [
+      "paths.gtd_workbook",
+      "paths.add_gtd_items_script",
+      "modules.gtd-workbook.enabled",
+      "modules.gtd-workbook.allow_writes"
+    ]
+  },
+  "enabled_by_default": false,
+  "proposal_output_type": "gtd_updates"
+}

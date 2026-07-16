@@ -1,0 +1,54 @@
+{
+  "id": "sent-mail-outlook",
+  "display_name": "Outlook Sent Mail",
+  "description": "Read recent Outlook Sent Items through the bundled read-only PowerShell COM script to find waiting-for candidates.",
+  "required_connectors": [
+    "local:outlook-com"
+  ],
+  "read_sources": [
+    {
+      "type": "local_script",
+      "path": "scripts/Get-OutlookSentItems.ps1",
+      "mode": "read-only"
+    }
+  ],
+  "write_targets": [],
+  "config_schema": {
+    "type": "object",
+    "required": [
+      "enabled"
+    ],
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "window": {
+        "type": "string"
+      },
+      "body_max_chars": {
+        "type": "integer"
+      }
+    }
+  },
+  "onboarding": {
+    "question": "Do you want close-day to scan sent mail for waiting-for follow-ups?",
+    "default_for_profiles": [
+      "solo_operator"
+    ],
+    "setup_questions": [
+      "Which sent-mail source should close-day use?",
+      "If Outlook is selected, is desktop Outlook installed and signed in?"
+    ],
+    "connector_probes": [
+      "Run scripts/Get-OutlookSentItems.ps1 with a dry-run output file."
+    ],
+    "required_artifacts": [],
+    "optional_artifacts": [],
+    "config_keys": [
+      "modules.sent-mail-outlook.enabled",
+      "modules.sent-mail-outlook.window"
+    ]
+  },
+  "enabled_by_default": false,
+  "proposal_output_type": "waiting_for_candidates"
+}

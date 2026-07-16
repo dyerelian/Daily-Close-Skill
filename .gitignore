@@ -1,0 +1,12 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Local scratch / generated artifacts
+*.tmp
+outputs/
+
+# Personal machine profile. Keep the portable example in git.
+config/daily-close.local.json
+config/onboarding.answers.local.json

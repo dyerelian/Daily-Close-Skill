@@ -1,0 +1,48 @@
+{
+  "id": "granola-meetings",
+  "display_name": "Granola Meetings",
+  "description": "Read recent Granola meeting notes for decisions, action items, and follow-ups.",
+  "required_connectors": [
+    "granola"
+  ],
+  "read_sources": [
+    {
+      "type": "granola",
+      "mode": "read-only"
+    }
+  ],
+  "write_targets": [],
+  "config_schema": {
+    "type": "object",
+    "required": [
+      "enabled"
+    ],
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "window": {
+        "type": "string"
+      }
+    }
+  },
+  "onboarding": {
+    "question": "Should close-day read Granola meeting notes for decisions and action items?",
+    "default_for_profiles": [],
+    "setup_questions": [
+      "Is Granola connected in Codex?",
+      "Should meeting notes be scanned for today's close-out only?"
+    ],
+    "connector_probes": [
+      "Probe recent Granola notes when the connector is available."
+    ],
+    "required_artifacts": [],
+    "optional_artifacts": [],
+    "config_keys": [
+      "modules.granola-meetings.enabled",
+      "modules.granola-meetings.window"
+    ]
+  },
+  "enabled_by_default": false,
+  "proposal_output_type": "meeting_note_captures"
+}

@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "runtime": {
+    "mode": "codex",
+    "profile_type": "solo_operator",
+    "artifact_creation": "templates_config",
+    "artifact_root": "outputs/onboarding/example-workspace"
+  },
+  "owner": {
+    "name": "Example User",
+    "primary_email": "user@example.com",
+    "timezone": "America/Los_Angeles",
+    "workdays": [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday"
+    ],
+    "close_out_time": "17:00"
+  },
+  "privacy": {
+    "llm_data_level": "setup_answers_only",
+    "allow_raw_external_content": false
+  },
+  "write_policy": {
+    "enabled": false,
+    "external_writes_enabled": false,
+    "document_generation_enabled": false,
+    "crm_writes_enabled": false
+  },
+  "systems": {
+    "email": {
+      "provider": "gmail",
+      "account": "user@example.com",
+      "routine_query": "newer_than:7d -in:spam -in:trash"
+    },
+    "calendar": {
+      "provider": "outlook",
+      "days_ahead": 1
+    },
+    "tasks": {
+      "mode": "create_new",
+      "existing_path": null,
+      "allow_writes_after_approval": false
+    },
+    "crm": {
+      "mode": "create_new",
+      "existing_path": null,
+      "allow_live_sheet_writes": false,
+      "seed_terms": [
+        {
+          "category": "active_customer_program",
+          "account_hint": "Example Customer",
+          "query_terms": [
+            "Example Customer",
+            "pilot"
+          ]
+        },
+        {
+          "category": "partner_led_pipeline",
+          "account_hint": "Example Partner",
+          "query_terms": [
+            "Example Partner",
+            "opportunity"
+          ]
+        }
+      ]
+    },
+    "meetings": {
+      "granola": false,
+      "teams_local_cache": false
+    },
+    "chat": {
+      "slack": false,
+      "slack_channels": []
+    },
+    "source_of_truth": {
+      "mode": "local_files",
+      "allow_confluence_writes": false
+    },
+    "documents": {
+      "daily_plan": "docx",
+      "daily_plan_dir": null,
+      "eod_log_dir": null,
+      "agenda_dir": null
+    }
+  },
+  "connectors": {
+    "gmail": {
+      "configured": true
+    },
+    "slack": {
+      "configured": false
+    },
+    "granola": {
+      "configured": false
+    },
+    "atlassian": {
+      "configured": false
+    }
+  }
+}

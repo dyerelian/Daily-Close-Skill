@@ -1,0 +1,152 @@
+{
+  "profile": {
+    "email": "user@example.com"
+  },
+  "queries": [
+    {
+      "category": "active_customer_program",
+      "account_hint": "Example Customer Program",
+      "query": "newer_than:365d -in:spam -in:trash (\"Example Customer\" OR \"Example Program\")",
+      "emails": [
+        {
+          "id": "gmail-test-customer-1",
+          "thread_id": "thread-test-customer",
+          "from_": "Taylor Customer taylor.customer@example.org",
+          "to": [
+            "Example User user@example.com"
+          ],
+          "cc": [],
+          "subject": "Example Program monthly touchbase",
+          "snippet": "Please review the monthly touchbase material and confirm the agenda.",
+          "labels": [
+            "INBOX"
+          ],
+          "email_ts": "2026-07-15T14:32:35+00:00",
+          "display_url": "https://mail.google.com/mail/#all/gmail-test-customer-1"
+        }
+      ]
+    },
+    {
+      "category": "active_opportunity_customer_pursuit",
+      "account_hint": "Example Opportunity",
+      "query": "newer_than:365d -in:spam -in:trash (\"Example Opportunity\" OR pilot)",
+      "emails": [
+        {
+          "id": "gmail-test-opportunity-1",
+          "thread_id": "thread-test-opportunity",
+          "from_": "Example User user@example.com",
+          "to": [
+            "Pat Prospect pat.prospect@example.org"
+          ],
+          "cc": [
+            "Casey Teammate casey.teammate@example.com"
+          ],
+          "subject": "Example Opportunity weekly tag up",
+          "snippet": "Could you confirm the pilot decision when you hear back?",
+          "labels": [
+            "SENT"
+          ],
+          "email_ts": "2026-07-15T09:02:29-07:00",
+          "display_url": "https://mail.google.com/mail/#all/gmail-test-opportunity-1"
+        }
+      ]
+    },
+    {
+      "category": "active_research_customer_collaboration",
+      "account_hint": "Example Research Collaboration",
+      "query": "newer_than:365d -in:spam -in:trash (\"Example Research\" OR collaboration)",
+      "emails": [
+        {
+          "id": "gmail-test-research-1",
+          "thread_id": "thread-test-research",
+          "from_": "Riley Research riley.research@example.org",
+          "to": [
+            "Example User user@example.com"
+          ],
+          "cc": [
+            "Casey Teammate casey.teammate@example.com"
+          ],
+          "subject": "Project delay",
+          "snippet": "Can you please review the note below and let me know your thoughts?",
+          "labels": [
+            "INBOX"
+          ],
+          "email_ts": "2026-06-18T13:12:51+00:00",
+          "display_url": "https://mail.google.com/mail/#all/gmail-test-research-1"
+        }
+      ]
+    },
+    {
+      "category": "award_program_onboarding",
+      "account_hint": "Example Award Program",
+      "query": "newer_than:365d -in:spam -in:trash (\"Example Award\" OR onboarding)",
+      "emails": [
+        {
+          "id": "gmail-test-award-1",
+          "thread_id": "thread-test-award",
+          "from_": "Program Office program.office@example.org",
+          "to": [
+            "user@example.com"
+          ],
+          "cc": [],
+          "subject": "Example award has been issued",
+          "snippet": "Please log in to the contract portal to review and begin processing your award.",
+          "labels": [
+            "INBOX"
+          ],
+          "email_ts": "2026-07-09T08:30:07-07:00",
+          "display_url": "https://mail.google.com/mail/#all/gmail-test-award-1"
+        }
+      ]
+    },
+    {
+      "category": "partner_ecosystem_relationship",
+      "account_hint": "Example Ecosystem Partner",
+      "query": "newer_than:365d -in:spam -in:trash (\"Example Partner\" OR ecosystem)",
+      "emails": [
+        {
+          "id": "gmail-test-ecosystem-1",
+          "thread_id": "thread-test-ecosystem",
+          "from_": "Jordan Partner jordan.partner@example.org",
+          "to": [
+            "Example User user@example.com"
+          ],
+          "cc": [
+            "Morgan Ecosystem morgan.ecosystem@example.org"
+          ],
+          "subject": "Case study materials",
+          "snippet": "Could you please share the current version of the case study slides?",
+          "labels": [
+            "INBOX"
+          ],
+          "email_ts": "2026-07-15T10:57:23+02:00",
+          "display_url": "https://mail.google.com/mail/#all/gmail-test-ecosystem-1"
+        }
+      ]
+    },
+    {
+      "category": "partner_led_pipeline",
+      "account_hint": "Example Partner-Led Pipeline",
+      "query": "newer_than:365d -in:spam -in:trash (\"Partner Pipeline\" OR conference)",
+      "emails": [
+        {
+          "id": "gmail-test-pipeline-1",
+          "thread_id": "thread-test-pipeline",
+          "from_": "Parker Partner parker.partner@example.org",
+          "to": [
+            "Example User user@example.com",
+            "Casey Teammate casey.teammate@example.com"
+          ],
+          "cc": [],
+          "subject": "Upcoming partner conference",
+          "snippet": "I am available to attend the upcoming conference to promote the product. Please send the invite.",
+          "labels": [
+            "INBOX"
+          ],
+          "email_ts": "2026-07-10T22:02:50+00:00",
+          "display_url": "https://mail.google.com/mail/#all/gmail-test-pipeline-1"
+        }
+      ]
+    }
+  ]
+}

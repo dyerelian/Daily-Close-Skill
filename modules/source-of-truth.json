@@ -1,0 +1,59 @@
+{
+  "id": "source-of-truth",
+  "display_name": "Source of Truth",
+  "description": "Read and, after approval, update canonical Confluence project pages for material project changes.",
+  "required_connectors": [
+    "atlassian"
+  ],
+  "read_sources": [
+    {
+      "type": "confluence",
+      "mode": "read-only during sweep"
+    }
+  ],
+  "write_targets": [
+    {
+      "type": "confluence",
+      "requires_approval": true
+    }
+  ],
+  "config_schema": {
+    "type": "object",
+    "required": [
+      "enabled"
+    ],
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "allow_confluence_writes": {
+        "type": "boolean"
+      }
+    }
+  },
+  "onboarding": {
+    "question": "Should close-day maintain canonical project or account source-of-truth pages?",
+    "default_for_profiles": [],
+    "setup_questions": [
+      "Should source-of-truth live in Confluence, Google Docs, local files, or be skipped?",
+      "Should setup create a local mapping file from projects/accounts to canonical URLs?"
+    ],
+    "connector_probes": [
+      "Probe Atlassian/Confluence when Confluence is selected."
+    ],
+    "required_artifacts": [
+      "Source-of-truth mapping file or existing canonical page URLs."
+    ],
+    "optional_artifacts": [
+      "Canonical page template.",
+      "Project/account index."
+    ],
+    "config_keys": [
+      "paths.source_of_truth_skill",
+      "modules.source-of-truth.enabled",
+      "modules.source-of-truth.allow_confluence_writes"
+    ]
+  },
+  "enabled_by_default": false,
+  "proposal_output_type": "canonical_page_updates"
+}

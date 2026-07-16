@@ -1,0 +1,59 @@
+{
+  "id": "teams-local-cache",
+  "display_name": "Teams Local Cache",
+  "description": "Best-effort read-only extraction of recent Teams chat from the local new-Teams IndexedDB cache.",
+  "required_connectors": [
+    "local:teams-cache"
+  ],
+  "read_sources": [
+    {
+      "type": "local_script",
+      "path": "scripts/Get-TeamsMessages.py",
+      "mode": "read-only"
+    }
+  ],
+  "write_targets": [],
+  "config_schema": {
+    "type": "object",
+    "required": [
+      "enabled"
+    ],
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "window": {
+        "type": "string"
+      },
+      "cache_path": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "body_max_chars": {
+        "type": "integer"
+      }
+    }
+  },
+  "onboarding": {
+    "question": "Do you want close-day to read local Teams cache data for asks and commitments?",
+    "default_for_profiles": [],
+    "setup_questions": [
+      "Is the new Microsoft Teams desktop client installed?",
+      "Should Teams cache parsing be enabled as best-effort only?"
+    ],
+    "connector_probes": [
+      "Check for the Teams IndexedDB cache path.",
+      "Run scripts/Get-TeamsMessages.py with a dry-run output file."
+    ],
+    "required_artifacts": [],
+    "optional_artifacts": [],
+    "config_keys": [
+      "modules.teams-local-cache.enabled",
+      "modules.teams-local-cache.cache_path"
+    ]
+  },
+  "enabled_by_default": false,
+  "proposal_output_type": "message_capture_candidates"
+}

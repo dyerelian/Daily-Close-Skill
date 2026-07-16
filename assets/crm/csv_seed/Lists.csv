@@ -1,0 +1,9 @@
+Stages,Statuses,Relationship Types,Priorities,Channels,Follow-up Statuses,Relationship Roles,Follow-up Flags,Owners
+Lead,Active,Customer/Program,P1 - Must,Gmail,Open,Customer,Yes,Owner
+Pursuit,Waiting,Opportunity,P2 - Should,Outlook,Waiting,Sponsor,No,Delegate
+Pilot,At Risk,Research/Customer Collaboration,P3 - Could,Slack,Done,Partner,,Team
+Award Onboarding,On Hold,Award/Program,P4 - Later,Teams,Canceled,Program Manager,,
+Active Program,Won,Partner/Ecosystem,,Granola,,Technical,,
+Active Collaboration,Lost,Partner-led Pipeline,,Meeting,,Contracting,,
+Partner Pipeline,Closed,,,Manual,,Internal,,
+Closed,,,,,,,,

@@ -1,0 +1,73 @@
+{
+  "id": "daily-plan-docx",
+  "display_name": "Daily Plan DOCX",
+  "description": "Generate the next working day's Daily Plan Word document after the consolidated proposal is approved.",
+  "required_connectors": [
+    "local:file-system"
+  ],
+  "read_sources": [
+    {
+      "type": "json_payload",
+      "mode": "generated from approved proposal"
+    }
+  ],
+  "write_targets": [
+    {
+      "type": "docx",
+      "path_config_key": "paths.daily_plan_dir",
+      "requires_approval": true
+    }
+  ],
+  "config_schema": {
+    "type": "object",
+    "required": [
+      "enabled"
+    ],
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "output_dir": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "allow_generation": {
+        "type": "boolean"
+      }
+    }
+  },
+  "onboarding": {
+    "question": "Should close-day generate a next-day Daily Plan document?",
+    "default_for_profiles": [
+      "solo_operator"
+    ],
+    "setup_questions": [
+      "Should the plan be .docx, markdown-only, or skipped?",
+      "Where should Daily Plan documents and EOD logs be stored?"
+    ],
+    "connector_probes": [
+      "Check the configured Daily Plan and EOD log directories.",
+      "Check agenda renderer path when .docx generation is enabled."
+    ],
+    "required_artifacts": [
+      "Daily Plan output folder.",
+      "EOD log folder."
+    ],
+    "optional_artifacts": [
+      "Agenda output folder.",
+      "Agenda renderer script."
+    ],
+    "config_keys": [
+      "paths.daily_plan_dir",
+      "paths.eod_log_dir",
+      "paths.agenda_dir",
+      "paths.agenda_creator_script",
+      "modules.daily-plan-docx.enabled",
+      "modules.daily-plan-docx.allow_generation"
+    ]
+  },
+  "enabled_by_default": false,
+  "proposal_output_type": "daily_plan_preview"
+}
