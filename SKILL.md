@@ -368,6 +368,9 @@ Render a clean, sectioned summary and wait for approval. Dan can edit or drop an
      --output "C:\Users\E724101\OneDrive - Automobile Club of Southern California\Daily Plan\Daily Plan <target-day>.docx"
    ```
    A non-zero exit usually means a `send_ahead_bullets` failed the 5–10-word rule — fix and re-run.
+   The renderer **always adds a centered "Page X of Y" footer** to every page of the Daily Plan
+   (PAGE/NUMPAGES fields) — this is built into `create_daily_plan_docx.py`, so no payload flag is
+   needed; the multi-page plan is always paginated.
 
 6. **Write the SEND-OUT day's agendas as standalone `.docx` files** into the shared Agendas folder
    (the day **two days out** from the close), so tomorrow morning's "send agendas 24h ahead" task is a

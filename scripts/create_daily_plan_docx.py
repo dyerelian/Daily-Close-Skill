@@ -228,6 +228,52 @@ def numbering_xml() -> str:
 """
 
 
+# --- Page-number footer -------------------------------------------------------
+# The Daily Plan usually spans several pages (schedule + one agenda per meeting),
+# so every page carries a centered "Page X of Y" footer. Implemented here rather
+# than in the shared agenda-creator renderer so only the close-day output changes.
+
+FOOTER_REL_ID = "rId100"  # high number to avoid colliding with the agenda rels (rId1/rId2)
+
+
+def footer_xml() -> str:
+    """A centered 'Page X of Y' footer using the PAGE / NUMPAGES fields."""
+    return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p>
+    <w:pPr><w:jc w:val="center"/></w:pPr>
+    <w:r><w:t xml:space="preserve">Page </w:t></w:r>
+    <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+    <w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>
+    <w:r><w:fldChar w:fldCharType="end"/></w:r>
+    <w:r><w:t xml:space="preserve"> of </w:t></w:r>
+    <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+    <w:r><w:instrText xml:space="preserve"> NUMPAGES </w:instrText></w:r>
+    <w:r><w:fldChar w:fldCharType="end"/></w:r>
+  </w:p>
+</w:ftr>
+"""
+
+
+def content_types_with_footer() -> str:
+    """Agenda-creator content types plus the footer part override."""
+    override = (
+        '  <Override PartName="/word/footer1.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>\n'
+    )
+    return ac.content_types_xml().replace("</Types>", override + "</Types>")
+
+
+def document_rels_with_footer() -> str:
+    """Agenda-creator document rels plus the footer relationship."""
+    rel = (
+        f'  <Relationship Id="{FOOTER_REL_ID}" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" '
+        'Target="footer1.xml"/>\n'
+    )
+    return ac.document_rels_xml().replace("</Relationships>", rel + "</Relationships>")
+
+
 def daily_plan_body(data: dict) -> str:
     parts: list[str] = []
 
@@ -269,10 +315,11 @@ def daily_plan_body(data: dict) -> str:
 def document_xml(data: dict) -> str:
     body = daily_plan_body(data)
     return f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <w:body>
     {body}
     <w:sectPr>
+      <w:footerReference w:type="default" r:id="{FOOTER_REL_ID}"/>
       <w:pgSz w:w="12240" w:h="15840"/>
       <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/>
     </w:sectPr>
@@ -284,12 +331,13 @@ def document_xml(data: dict) -> str:
 def create_docx(data: dict, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as docx:
-        docx.writestr("[Content_Types].xml", ac.content_types_xml())
+        docx.writestr("[Content_Types].xml", content_types_with_footer())
         docx.writestr("_rels/.rels", ac.root_rels_xml())
-        docx.writestr("word/_rels/document.xml.rels", ac.document_rels_xml())
+        docx.writestr("word/_rels/document.xml.rels", document_rels_with_footer())
         docx.writestr("word/document.xml", document_xml(data))
         docx.writestr("word/styles.xml", ac.styles_xml())
         docx.writestr("word/numbering.xml", numbering_xml())
+        docx.writestr("word/footer1.xml", footer_xml())
 
 
 def load_data(args: argparse.Namespace) -> dict:
