@@ -4,8 +4,9 @@
 The Daily Plan is the forward-looking output of the `close-day` skill. Its layout,
 top to bottom, is:
 
-    inspirational quote  ->  title/date  ->  summary  ->  MIT ("The Frog")  ->
-    Daily Big 3  ->  top action items  ->  other action items  ->
+    inspirational quote  ->  title/date  ->  summary  ->
+    Daily Takeaways (3 did-well + 3 to-improve, from the prior day)  ->
+    MIT ("The Frog")  ->  Daily Big 3  ->  top action items  ->  other action items  ->
     one full agenda section per meeting (each on its own page)
 
 Per-meeting agendas are rendered with the EXACT same logic as the `agenda-creator`
@@ -52,6 +53,19 @@ EXAMPLE_DATA = {
         "author": "Jim Rohn",
     },
     "summary": "Light meeting load; protect the morning for the funnel write-up.",
+    "takeaways": {
+        "source_day": "2026-06-26",
+        "well": [
+            "Closed the Learfield economics debate with a clear one-school test.",
+            "Kept the 1:1 with Mariyo focused and ended with owners on every item.",
+            "Got the inbox to zero before end of day.",
+        ],
+        "improve": [
+            "Start the funnel write-up earlier instead of after lunch.",
+            "Send agenda pre-reads the night before, not the morning of.",
+            "Say no to the mid-afternoon drop-in that broke deep work.",
+        ],
+    },
     "mit": "Draft the AAA customer-acquisition funnel one-pager (hardest, highest leverage).",
     "daily_big_3": [
         "Funnel one-pager drafted and shared for review",
@@ -128,6 +142,37 @@ def bullet_block(parts: list[str], heading: str, values: object) -> None:
     parts.append(ac.simple_paragraph(heading, style="Heading1"))
     for item in items:
         parts.append(ac.simple_paragraph(item, bullet=True))
+
+
+def takeaways_block(parts: list[str], takeaways: object) -> None:
+    """Brian-Tracy-style end-of-day reflection: 3 things done well + 3 to improve.
+
+    Accepts a dict ``{"well": [...], "improve": [...], "source_day": "YYYY-MM-DD"}``.
+    Renders a single "Daily Takeaways" Heading1 (with the source day noted when present),
+    then a bold "Did well:" sub-label + bullets and a bold "To improve next time:"
+    sub-label + bullets. No-ops when both lists are empty (mirrors ``bullet_block``).
+    """
+    if not isinstance(takeaways, dict):
+        return
+    well = [ac.text(v) for v in (takeaways.get("well") or []) if ac.text(v).strip()]
+    improve = [ac.text(v) for v in (takeaways.get("improve") or []) if ac.text(v).strip()]
+    if not well and not improve:
+        return
+
+    heading = "Daily Takeaways"
+    source_day = ac.text(takeaways.get("source_day")).strip()
+    if source_day:
+        heading += f" (from {source_day})"
+    parts.append(ac.simple_paragraph(heading, style="Heading1"))
+
+    if well:
+        parts.append(ac.paragraph_xml([ac.run_xml("Did well:", bold=True)]))
+        for item in well:
+            parts.append(ac.simple_paragraph(item, bullet=True))
+    if improve:
+        parts.append(ac.paragraph_xml([ac.run_xml("To improve next time:", bold=True)]))
+        for item in improve:
+            parts.append(ac.simple_paragraph(item, bullet=True))
 
 
 def leveled_bullet(value: str, level: int = 0) -> str:
@@ -288,6 +333,8 @@ def daily_plan_body(data: dict) -> str:
     if summary:
         parts.append(ac.simple_paragraph("Summary", style="Heading1"))
         parts.append(ac.simple_paragraph(summary))
+
+    takeaways_block(parts, data.get("takeaways"))
 
     mit = ac.text(data.get("mit")).strip()
     if mit:

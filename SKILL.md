@@ -1,6 +1,6 @@
 ---
 name: close-day
-description: Close out Dan's workday using his GTD process — review and tidy the GTD workbook (mark done, flag overdue/stale, process inbox), review how today's committed priorities landed, sweep the day's loose ends from Slack, Teams, Atlassian, Granola/Outlook plus manual input into next actions/waiting-for/inbox, plan tomorrow's priorities, and save a dated end-of-day summary log. Invoked as "/close-day". Use when the user says close out my day, end of day, EOD, shut down, wrap up the day, daily review, or plan tomorrow.
+description: Close out Dan's workday using his GTD process — review and tidy the GTD workbook (mark done, flag overdue/stale, process inbox), review how today's committed priorities landed, sweep the day's loose ends from Slack, Teams, Atlassian, Granola/Outlook plus manual input into next actions/waiting-for/inbox, capture daily takeaways (3 wins / 3 improvements), plan tomorrow's priorities, and save a dated end-of-day summary log. Invoked as "/close-day". Use when the user says close out my day, end of day, EOD, shut down, wrap up the day, daily review, or plan tomorrow.
 ---
 
 # /close-day — End-of-Day GTD Close-Out
@@ -21,6 +21,10 @@ This skill **orchestrates**; it does not re-implement the writer or the doc rend
 - Tomorrow's meetings: `C:\Users\E724101\.claude\skills\close-day\scripts\Get-OutlookMeetings.ps1`
 - Today's sent mail (for waiting-for sweep): `C:\Users\E724101\.claude\skills\close-day\scripts\Get-OutlookSentItems.ps1`
 - Daily Plan renderer: `C:\Users\E724101\.claude\skills\close-day\scripts\create_daily_plan_docx.py`
+
+Both daily artifacts open with a **Daily Takeaways** reflection — 3 things Dan did well
+today and 3 things to change/improve next time (Brian Tracy's end-of-day discipline).
+Claude drafts them from the day's signals; Dan edits them at the single approval gate.
 
 Two daily artifacts (distinct on purpose):
 - **EOD markdown log** — retrospective record of *today* (`...\Daily Plan\GTD Daily Logs\EOD YYYY-MM-DD.md`).
@@ -232,6 +236,17 @@ Wait for his answer before moving to the next item. If there are no open items t
 this step entirely**. Fold Dan's answers into the proposal (Phase 4): done → mark complete;
 unfinished → carry forward to the target day; dropped → cancel; changed → update the action.
 
+### Phase 2d — Draft the Daily Takeaways (Brian Tracy reflection)
+
+Brian Tracy's end-of-day discipline: close every day by naming **3 things you did well**
+and **3 things you'll change or improve next time**. From the day's signals — completed
+priorities and wins, the sweep (Slack/Teams/Atlassian/Granola/mail), blockers, dropped or
+slipped items, and Dan's Phase 2c answers — **draft a proposed 3 "did well" + 3 "to improve
+next time."** These are Claude's drafts; Dan edits, replaces, or trims them at the single
+approval gate (Phase 4). Keep each a concrete, specific one-liner (not "had a good day").
+If the day genuinely yields fewer than three of either, propose what's real rather than
+padding.
+
 ### Phase 3 — Ask Dan for manual inputs
 
 After displaying the gathered items (so he has context), explicitly ask:
@@ -246,6 +261,9 @@ top-3, so Dan's own priorities take precedence.
 ### Phase 4 — Present ONE consolidated proposal (the single confirmation gate)
 
 Render a clean, sectioned summary and wait for approval. Dan can edit or drop any line first.
+- **Daily Takeaways** (Phase 2d) — the drafted **3 things done well** + **3 to improve next
+  time**, explicitly flagged as editable so Dan tweaks/replaces them before approving. These
+  land at the top of both today's EOD log and tomorrow's Daily Plan doc.
 - **Today's priorities review** — for each of today's committed priorities (Phase 1 / 2c): its
   outcome (done / carried / dropped / changed). Route each into the right action below — done →
   Mark complete; carried → Tomorrow's plan (reschedule to the target day); dropped → cancel;
@@ -320,10 +338,14 @@ Render a clean, sectioned summary and wait for approval. Dan can edit or drop an
 
 4. **Save the daily log** with the `Write` tool to:
    `C:\Users\E724101\OneDrive - Automobile Club of Southern California\Daily Plan\GTD Daily Logs\EOD YYYY-MM-DD.md`
-   Sections: **Accomplished today · Captured · Carried to tomorrow (top priorities) · Waiting on · Notes**.
-   Reflect the **Today's priorities review** (Phase 2c) here: resolved priorities go under
-   *Accomplished today*, and any that Dan carried forward go under *Carried to tomorrow*.
-   If a file for today already exists, **append a timestamped section** rather than overwriting.
+   Sections, in order: **Daily Takeaways · Accomplished today · Captured · Carried to tomorrow
+   (top priorities) · Waiting on · Notes**. `## Daily Takeaways` is the **first H2, immediately
+   after the H1 title** — the approved 3 did-well + 3 to-improve (Phase 2d/4), rendered as two
+   short lists (e.g. bold **Did well** and **To improve next time** sub-labels, each with its
+   bullets). Reflect the **Today's priorities review** (Phase 2c) in the rest: resolved
+   priorities go under *Accomplished today*, and any that Dan carried forward go under
+   *Carried to tomorrow*. If a file for today already exists, **append a timestamped section**
+   rather than overwriting.
 
 5. **Generate the target day's Daily Plan `.docx`.** Build the daily-plan JSON and write it BOM-free
    to `$env:TEMP\daily-plan.json` (use the target day chosen in Phase 2b for `date` and the filename):
@@ -332,6 +354,7 @@ Render a clean, sectioned summary and wait for approval. Dan can edit or drop an
      "date": "YYYY-MM-DD (target day)",
      "quote": { "text": "...", "author": "..." },
      "summary": "1-3 sentence framing of the target day",
+     "takeaways": { "source_day": "YYYY-MM-DD (the day being closed)", "well": ["...", "...", "..."], "improve": ["...", "...", "..."] },
      "mit": "single most important task",
      "daily_big_3": ["outcome 1", "outcome 2", "outcome 3"],
      "top_actions": [
@@ -358,9 +381,14 @@ Render a clean, sectioned summary and wait for approval. Dan can edit or drop an
      Dan's prep for today's meetings. (The send-out day's agendas are *not* rendered in full; they are
      only the sub-bullet titles under `top_actions[0]`.)
 
-   Document order top→bottom: quote · title · summary · MIT · Daily Big 3 · Top Action Items (with
-   send-out day sub-bullets) · Other Action Items · **Meeting Schedule (target day)** · Meeting Agendas
-   (target day, full detail).
+   - `takeaways` is the approved Daily Takeaways (Phase 2d/4). `source_day` is the **day being
+     closed** (the prior working day relative to the target day), so tomorrow's plan opens by
+     carrying forward today's reflection. Omit the key (or leave both lists empty) to skip the
+     section — the renderer no-ops on empty input.
+
+   Document order top→bottom: quote · title · summary · **Daily Takeaways (from the day being
+   closed)** · MIT · Daily Big 3 · Top Action Items (with send-out day sub-bullets) · Other Action
+   Items · **Meeting Schedule (target day)** · Meeting Agendas (target day, full detail).
    Then render (creates the `Daily Plan` folder if missing):
    ```powershell
    & 'C:\Program Files\Python312\python.exe' "C:\Users\E724101\.claude\skills\close-day\scripts\create_daily_plan_docx.py" `
