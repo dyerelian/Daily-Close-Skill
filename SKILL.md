@@ -18,6 +18,7 @@ This skill **orchestrates**; it does not re-implement the writer or the doc rend
 - Columns, `Lists` vocabulary, defaults, payload schema: `C:\Users\E724101\.claude\skills\add-gtd-items\references\workbook-schema.md`
 - External source conventions (narrow, recent, read-only): `C:\Users\E724101\.claude\skills\agenda-creator\references\context-sources.md`
 - Canonical Confluence page mechanics (create / update / close): `C:\Users\E724101\.claude\skills\source-of-truth\references\canonical-project-page.md`
+- Meeting-first page fan-out (route a day's meetings to their canonical pages): `C:\Users\E724101\.claude\skills\source-of-truth\references\meeting-sweep.md` (used by Phase 2e)
 - Tomorrow's meetings: `C:\Users\E724101\.claude\skills\close-day\scripts\Get-OutlookMeetings.ps1`
 - Today's sent mail (for waiting-for sweep): `C:\Users\E724101\.claude\skills\close-day\scripts\Get-OutlookSentItems.ps1`
 - Daily Plan renderer: `C:\Users\E724101\.claude\skills\close-day\scripts\create_daily_plan_docx.py`
@@ -247,6 +248,31 @@ approval gate (Phase 4). Keep each a concrete, specific one-liner (not "had a go
 If the day genuinely yields fewer than three of either, propose what's real rather than
 padding.
 
+### Phase 2e — Meeting-first canonical page sweep (read-only routing)
+
+Phase 1's "Canonical page coverage / staleness" flags pages **project-first** (a project shows a
+material change today). This phase adds the **meeting-first** pass so a substantive call whose
+narrative never became a GTD change still reaches its canonical page. Follow
+`source-of-truth\references\meeting-sweep.md` — this is routing only; **no page is written here**
+(writes happen in Phase 5 step 3b behind the single gate).
+
+1. **Enumerate today's meetings.** Run `Get-OutlookMeetings.ps1 -Date <today ISO>` (it defaults to
+   tomorrow — pass today explicitly) and **UNION** with the Phase 2 Granola `recent_notes` results
+   already pulled in the sweep (reuse them; do not re-query). Correlate calendar block ↔ Granola
+   note by start-time overlap + fuzzy title; dedupe recurring/duplicate blocks.
+2. **Skip / scope.** Drop all-day / holiday / pure-social blocks. **Surface 1:1s in the routing
+   loop** (don't hard-skip). Apply the **AAA-only scope** — skip non-AAA meetings, judging
+   relevance by **content / attendees / project match, never the organizer or note-owner email**.
+3. **Build the page universe once** — reuse Phase 1's loaded `$projects` (column O
+   `Canonical page:` URLs) plus the Active/Closed index `<li>` enumeration; key by `pageId`.
+4. **Route each surviving meeting with the sequential one-at-a-time confirm** (mirror Phase 2c —
+   one question per meeting, never batched): `Meeting "<subject>" (<time>). Best match: <page>.
+   [1] update this page  [2] different existing page  [3] new page  [4] skip. Recommended: [n]`.
+5. **Reconcile into the shared per-page work list keyed by `pageId`** that Phase 1's staleness
+   flags populate: a meeting hitting an already-flagged page **merges into that entry** (one page,
+   project + meeting facts folded together); a meeting-only page becomes a **new entry**; a
+   "new page" decision becomes a create entry. No page appears twice.
+
 ### Phase 3 — Ask Dan for manual inputs
 
 After displaying the gathered items (so he has context), explicitly ask:
@@ -285,15 +311,18 @@ Render a clean, sectioned summary and wait for approval. Dan can edit or drop an
   page moved from the `Active Projects` to the `Closed Projects` index list (and page
   Status flipped to Closed). See the `source-of-truth` skill's
   `references/canonical-project-page.md`.
-- **Canonical page updates** — every project with a **material change today** (status,
-  a decision, a milestone reached, a new risk/open question, or a new next-action /
-  waiting-for tied to it) gets its canonical Confluence page refreshed to match —
-  Overview table, Milestones, Decisions, and the reverse-chronological Updates log —
-  because Confluence is the public source of truth. Merge, never overwrite. See the
-  `source-of-truth` skill's `references/canonical-project-page.md` → "Updating an existing page."
+- **Canonical page updates** — the **merged per-page work list** (Phase 1 project-driven flags
+  **plus** Phase 2e meeting-first routing, deduped by `pageId`). Each page appears **once**, with
+  project facts and any meeting narrative folded together, refreshed to match — Overview table,
+  Milestones, Decisions, and the reverse-chronological Updates log — because Confluence is the
+  public source of truth. This now surfaces **meeting-only** narrative (a call's decision/pivot
+  that produced no GTD change), not just project-tagged changes. Merge, never overwrite. See the
+  `source-of-truth` skill's `references/canonical-project-page.md` → "Updating an existing page"
+  and `references/meeting-sweep.md`.
 - **Canonical page coverage** — active projects flagged in Phase 1 as **missing** a
-  canonical page (propose creating one via the `source-of-truth` skill) and any pages flagged
-  **stale** (propose a refresh). Skip this line if none were flagged.
+  canonical page, plus any **new page** decisions from the Phase 2e meeting routing (propose
+  creating each via the `source-of-truth` skill) and any pages flagged **stale** (propose a
+  refresh). Skip this line if none were flagged.
 - **Daily log preview** — the markdown (today) that will be saved.
 - **Daily Plan preview** — the quote, summary, MIT, Big 3, action lists (with the send-out day
   agendas as titles-only sub-bullets under the first Top Action Item), the target day's **Meeting
@@ -324,17 +353,20 @@ Render a clean, sectioned summary and wait for approval. Dan can edit or drop an
    ```
    Confirm `validated: true` in the script output.
 
-   **3b. Refresh canonical Confluence pages.** For each project in the approved proposal
-   with a material change today (and for completed projects, the Active→Closed move),
-   update its canonical page per the `source-of-truth` skill's
-   `references/canonical-project-page.md` → "Updating an existing page":
-   read the page ID from the project's `notes` (`Canonical page: <url>`),
-   `confluence_get_page`, **merge** the change into the Overview / Milestones / Decisions
-   / Updates sections (never blank a section), then `confluence_update_page`. For any
-   **missing-page** project approved in the "Canonical page coverage" line, create its page
-   first (same skill → "Creating a page for a new project") and store the URL in its `notes`
-   (column O) via the `add-gtd-items` writer. This is the only external write in the
-   close-out, and it happens only after the single approval gate.
+   **3b. Refresh canonical Confluence pages.** Process the **merged per-page work list** from the
+   proposal (Phase 1 project-driven flags **plus** Phase 2e meeting-first routing, deduped by
+   `pageId`) — **one `confluence_get_page → merge → confluence_update_page` per `pageId`**, so a
+   page hit by both a project change and a meeting is fetched and written exactly once with both
+   sets of facts and a single dated Updates bullet. Merge per the `source-of-truth` skill's
+   `references/canonical-project-page.md` → "Updating an existing page" (Overview / Milestones /
+   Decisions / Risks / Updates; never blank a section; respect the ~20K condense exception and
+   the page content rules — attribute to "the meeting" and its date, never name/link Granola, no
+   GTD keys). For any **missing-page** project or **new-page** meeting decision approved in the
+   "Canonical page coverage" line, create the page first (same skill → "Creating a page for a new
+   project"), append its `<li>` to the Active index, and store the URL in the project's `notes`
+   (column O) via the `add-gtd-items` writer if it is GTD-tracked. For completed projects, do the
+   Active→Closed move. This is the only external write in the close-out, and it happens only after
+   the single approval gate.
 
 4. **Save the daily log** with the `Write` tool to:
    `C:\Users\E724101\OneDrive - Automobile Club of Southern California\Daily Plan\GTD Daily Logs\EOD YYYY-MM-DD.md`
@@ -435,9 +467,15 @@ Render a clean, sectioned summary and wait for approval. Dan can edit or drop an
   Priority `P1 - Must`, Decision `Defer`).
 - **Always `-DryRun` dedup-check before writing**; pause on likely duplicates. OneDrive keeps history.
 - External sources are **read-only during the sweep** — never post, send, or modify
-  external items while gathering (Phases 1–3). The **only** external write is the
+  external items while gathering (Phases 1–3, including the Phase 2e meeting-first routing,
+  which decides page targets but writes nothing). The **only** external write is the
   approved canonical Confluence page refresh/move in Phase 5 (step 3b), after the
   single approval gate.
+- **Meeting-first sweep (Phase 2e) obeys AAA-only scope** — judge relevance by
+  **content / attendees / project match, never the organizer or note-owner email** — surfaces
+  1:1s in the routing loop (never auto-routes them), and **dedupes pages by `pageId`** so each
+  canonical page is fetched and written exactly once even when multiple meetings and/or a project
+  change target it.
 - Use **ISO dates** in the payload; exact names for owners/people (e.g. `Mariyo`).
 - One approval gate only: gather everything, propose once, then execute.
 - **Outlook access via the bundled PowerShell COM script only** (late-bound IDispatch). Never use
