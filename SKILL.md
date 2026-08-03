@@ -162,6 +162,45 @@ usually tomorrow but may not be.
   Wednesday's agendas.) Across weekends/holidays this is still the next *working* day (e.g. on a
   Friday plan, the send-out day is Monday).
 
+**Per-meeting agenda direction (Dan steers each agenda — gather once, reuse across closes).**
+Dan can give short per-meeting direction that shapes the drafted agendas. Because the same meeting
+surfaces twice — first as a **send-out-day** agenda (two nights out, step 2) and again the next night
+as **target-day** prep (step 3) — his direction is **captured once and reused**, never re-asked. The
+store write below is Dan's own captured input (a local file), not an external side effect, so it is
+allowed during the otherwise read-only gather.
+
+- **Direction store.** Persist direction in
+  `C:\Users\E724101\OneDrive - Automobile Club of Southern California\Daily Plan\meeting-directions.json`
+  (survives across closes — never `$env:TEMP`). Key each entry by the meeting instance:
+  normalized `subject` + `|` + the actual start `YYYY-MM-DDTHH:MM` — the same calendar instance keeps
+  the same key on both nights, so reuse is automatic. Entry shape:
+  ```json
+  { "key": "Weekly Membership Sync|2026-08-04T10:00", "subject": "Weekly Membership Sync",
+    "start": "2026-08-04T10:00", "goal": "...", "include": "...", "reference_prior": "...",
+    "decisions_asks": "...", "review_items": "...", "raw_blurb": "<Dan's verbatim text>",
+    "skip": false, "captured_on": "2026-08-02", "used_on": ["2026-08-02", "2026-08-03"] }
+  ```
+  On load, **prune** entries whose `start` is before today so the file stays small. Write it BOM-free
+  with the `Write` tool (or `[System.IO.File]::WriteAllText(...)`) — never `Set-Content -Encoding utf8`.
+
+- **Gather loop — run after reading the meetings (steps 1–2), before drafting (steps 2–3).**
+  Build the union of target-day + send-out-day meetings and apply the **same skip rules as Phase 2e**
+  (AAA-only by content / attendees / project — **never** the organizer email; drop all-day / holiday /
+  pure-social blocks). For each surviving meeting, look up its key in the store:
+  - **Stored entry exists → reuse silently** (no re-prompt); append today to `used_on`. This is how
+    target-day prep inherits the direction Dan gave two nights earlier as a send-out agenda.
+  - **No entry → prompt fresh**, one meeting at a time (mirror the Phase 2c / 2e sequential
+    one-at-a-time convention — one question per meeting, wait for the answer, never batch). Show the
+    meeting's context first (subject, day/time, attendees, a short `body` snippet from
+    `Get-OutlookMeetings.ps1`), then ask:
+    > For **"<subject>" (<day> <time>)** — what's the **goal**? what should be **included**? **which
+    > previous information** should I reference (prior meeting/agenda, doc, data)? any **decisions or
+    > asks** to land? any **specific items to review**? — or say **skip** to let me auto-draft it.
+
+    Every field is optional. Save each answer to the store as captured (`skip` → store `"skip": true`
+    so the meeting isn't re-prompted next close and just auto-drafts). Meetings with no direction and
+    those Dan skips still get a full auto-drafted agenda from pulled context, exactly as today.
+
 1. **Read the target day's meetings** via Outlook COM (defaults to tomorrow):
    ```powershell
    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Users\E724101\.claude\skills\close-day\scripts\Get-OutlookMeetings.ps1" `
@@ -196,13 +235,22 @@ usually tomorrow but may not be.
    (use `suggestedTargetDay`) and re-run so the send-out day is always a real working day.
    **Draft a full agenda for each substantive send-out-day meeting** — same context-gathering and
    agenda structure as step 3 (`title`, `send_ahead_bullets`, `context_reviewed`, `sections[]`,
-   `notes[]`). These become the standalone send-out-day agenda files in Phase 5 step 6.
+   `notes[]`). These become the standalone send-out-day agenda files in Phase 5 step 6. When the
+   meeting has a stored direction entry (see "Per-meeting agenda direction" above), **fold Dan's
+   direction in with precedence** over auto-pulled context — `goal` → the agenda `subtitle` / a
+   leading "Purpose & desired outcome" item and the `send_ahead_bullets` framing; `include` /
+   `review_items` → discussion `sections[].items`; `decisions_asks` → a "Decisions needed / asks"
+   section; `reference_prior` → both which sources to pull and a `context_reviewed[]` note (e.g.
+   "Per Dan's direction: reviewed <prior meeting/doc>"). Auto-context fills gaps but never overrides
+   Dan's explicit instruction. `send_ahead_bullets` still obey the 5–10-word, max-10 rule.
 3. **Draft a full agenda for each substantive target-day meeting** (the day the plan is *for*) — gather
    context per `agenda-creator/references/context-sources.md` and produce the same agenda structure
    `create_agenda_docx.py` expects (`title`, `send_ahead_bullets` [5–10 words, max 10],
    `context_reviewed`, `sections[]`, `notes[]`). These become `agendas[]` and render (one per page) in
    the **Meeting Agendas** section after the Meeting Schedule, so Dan walks into today's meetings
-   prepared. Skip pure-social blocks (e.g. lunches), all-day blocks, and non-meeting reminders. (The
+   prepared. Fold in any stored per-meeting direction with precedence, exactly as in step 2 — a
+   single captured direction produces consistent content in both the standalone send-out file and
+   this embedded agenda. Skip pure-social blocks (e.g. lunches), all-day blocks, and non-meeting reminders. (The
    send-out day's meetings from step 2 are drafted in full too, but as **standalone files** in the
    send-out-day Agendas folder — see Phase 5 step 6 — and also appear as the send-out task's
    sub-bullet titles in step 5. They are **not** embedded in the target-day Daily Plan doc.)
@@ -255,6 +303,14 @@ material change today). This phase adds the **meeting-first** pass so a substant
 narrative never became a GTD change still reaches its canonical page. Follow
 `source-of-truth\references\meeting-sweep.md` — this is routing only; **no page is written here**
 (writes happen in Phase 5 step 3b behind the single gate).
+
+> **This phase runs on every close — never skip it, including retroactive / backfill closes.**
+> The routing loop is what guarantees a meeting like a new partner intro (e.g. Albertsons) is
+> surfaced instead of silently dropped. Even when the page **writes** are deferred or skipped for a
+> backfill, still **run the routing** (Step D) so each substantive AAA meeting gets a decision, and
+> **record the deferred routing decisions in the EOD log's Notes** (which page each meeting should
+> create/update) so the follow-up write isn't lost. Only the *writes* may be deferred behind the
+> gate — the *surfacing* always happens.
 
 1. **Enumerate today's meetings.** Run `Get-OutlookMeetings.ps1 -Date <today ISO>` (it defaults to
    tomorrow — pass today explicitly) and **UNION** with the Phase 2 Granola `recent_notes` results
@@ -323,6 +379,9 @@ Render a clean, sectioned summary and wait for approval. Dan can edit or drop an
   canonical page, plus any **new page** decisions from the Phase 2e meeting routing (propose
   creating each via the `source-of-truth` skill) and any pages flagged **stale** (propose a
   refresh). Skip this line if none were flagged.
+- **Meeting direction** — one line per upcoming agenda showing whether it used *newly captured*
+  direction, *reused* direction (from a prior close), or *auto-draft (skipped)*, so Dan sees his
+  instructions reflected before approving. Editable — he can revise any blurb at this gate.
 - **Daily log preview** — the markdown (today) that will be saved.
 - **Daily Plan preview** — the quote, summary, MIT, Big 3, action lists (with the send-out day
   agendas as titles-only sub-bullets under the first Top Action Item), the target day's **Meeting
@@ -456,8 +515,9 @@ Render a clean, sectioned summary and wait for approval. Dan can edit or drop an
 
 7. **Report** one line per change (sheet, ID, title, added/updated/completed) + the EOD log path
    + the Daily Plan `.docx` path + the Agendas-folder path with the count of standalone agenda
-   files written + the count of meeting agendas embedded. Excel rollups/Dashboard refresh when the
-   workbook is next opened.
+   files written + the count of meeting agendas embedded + a one-line direction summary (how many
+   agendas used newly-captured vs. reused vs. auto-drafted direction). Excel rollups/Dashboard
+   refresh when the workbook is next opened.
 
 ## Defaults & guardrails
 
@@ -478,6 +538,13 @@ Render a clean, sectioned summary and wait for approval. Dan can edit or drop an
   change target it.
 - Use **ISO dates** in the payload; exact names for owners/people (e.g. `Mariyo`).
 - One approval gate only: gather everything, propose once, then execute.
+- **Per-meeting agenda direction is optional and captured once.** Gather Dan's per-meeting blurbs
+  one at a time in Phase 2b, persist them in `meeting-directions.json` keyed by meeting instance,
+  and **reuse across closes** so the same meeting is never re-prompted (`skip` is remembered →
+  auto-draft). The store lives in the OneDrive Daily Plan folder (never `$env:TEMP`), is pruned of
+  past meetings each run, and is written BOM-free via the `Write` tool — never
+  `Set-Content -Encoding utf8`. Direction takes precedence over auto-pulled context and folds into
+  the existing agenda JSON fields only — no renderer/schema change.
 - **Outlook access via the bundled PowerShell COM script only** (late-bound IDispatch). Never use
   Python `win32com`/`EnsureDispatch` — the typelib/gencache path is broken on this machine. Calendar
   reads are read-only; never send or modify Outlook items.
