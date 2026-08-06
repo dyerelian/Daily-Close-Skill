@@ -92,6 +92,25 @@ proposal, treat the edited proposal as the executable scope.
    GTD workbook updates, CRM updates or local proposal export, source-of-truth updates,
    EOD log, Daily Plan document, standalone agendas.
 
+## Agendas: recurring-meeting recap
+
+When the `daily-plan-docx` module generates standalone or embedded agendas, open each
+**recurring** meeting's agenda (1:1s, standing syncs) with a **Last meeting recap** built
+from the previous instance of that same meeting:
+
+1. Identify the meeting as recurring by matching its title/counterpart to a prior agenda or
+   prior meeting note (normalized subject + start time).
+2. Chain to the prior instance's agenda file in `paths.agenda_dir` (most recent dated agenda
+   before this meeting whose title matches) and read it for last time's commitments,
+   decisions, and open loops.
+3. If the `granola-meetings` module is enabled, find that instance's Granola note
+   (`search_notes`/`recent_notes`, correlate by start-time overlap + fuzzy title) and prefer
+   it as the recap source; fall back to the prior agenda, then local notes.
+4. Compose the recap with: a short summary of what was discussed, open follow-ups / action
+   items (with owner where known), decisions made, and suggested talking points for this
+   meeting. Carry unresolved follow-ups forward as this meeting's talking points so nothing
+   is dropped. If no prior instance is found, state "No prior meeting found."
+
 ## CRM Module
 
 When `crm-google-sheet` is enabled, read `references/crm-google-sheet.md` before proposing CRM
