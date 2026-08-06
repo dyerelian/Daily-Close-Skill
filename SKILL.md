@@ -246,7 +246,10 @@ allowed during the otherwise read-only gather.
 3. **Draft a full agenda for each substantive target-day meeting** (the day the plan is *for*) — gather
    context per `agenda-creator/references/context-sources.md` and produce the same agenda structure
    `create_agenda_docx.py` expects (`title`, `send_ahead_bullets` [5–10 words, max 10],
-   `context_reviewed`, `sections[]`, `notes[]`). These become `agendas[]` and render (one per page) in
+   `context_reviewed`, `sections[]`, `notes[]`). For recurring meetings (1:1s, standing syncs), open
+   the agenda with a **Last meeting recap** built per that reference's "Recurring meetings:
+   prior-instance & recap sourcing" procedure — chain to the prior instance's agenda `.docx` in the
+   Agendas folder plus its Granola note so open follow-ups carry forward. These become `agendas[]` and render (one per page) in
    the **Meeting Agendas** section after the Meeting Schedule, so Dan walks into today's meetings
    prepared. Fold in any stored per-meeting direction with precedence, exactly as in step 2 — a
    single captured direction produces consistent content in both the standalone send-out file and
