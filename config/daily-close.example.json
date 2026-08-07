@@ -5,6 +5,10 @@
     "primary_email": "user@example.com",
     "timezone": "America/Los_Angeles"
   },
+  "scope_exclusions": {
+    "match_mode": "case_insensitive_term",
+    "topics": []
+  },
   "write_mode": {
     "enabled": false,
     "require_single_approval": true,

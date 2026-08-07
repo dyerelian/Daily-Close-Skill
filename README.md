@@ -46,6 +46,11 @@ Then invoke the skill from Codex with a prompt such as:
 Use $close-day to close my day.
 ```
 
+Machine-specific topics that should never appear in a close-out can be listed under
+`scope_exclusions.topics` in `config/daily-close.local.json`. Exclusions apply across enabled
+sources, proposals, Jira/CRM/source-of-truth updates, plans, and generated artifacts unless the
+user explicitly opts a topic back in for a single run.
+
 ## Layout
 
 | Path | Purpose |

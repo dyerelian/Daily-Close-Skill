@@ -125,6 +125,19 @@ def collect_interactive_answers() -> dict:
     answers["runtime"]["artifact_root"] = ask(
         "Local artifact root", answers["runtime"]["artifact_root"]
     )
+    excluded = ask("Topics/accounts/projects to exclude (comma-separated)")
+    answers["scope_exclusions"] = {
+        "match_mode": "case_insensitive_term",
+        "topics": [
+            {
+                "name": term,
+                "match_terms": [term],
+                "reason": "User-requested exclusion during onboarding",
+            }
+            for term in (item.strip() for item in excluded.split(","))
+            if term
+        ],
+    }
     return answers
 
 
@@ -217,6 +230,8 @@ def build_config(answers: dict, artifact_root: Path) -> dict:
             "close_out_time": owner.get("close_out_time"),
         },
         "privacy": answers.get("privacy") or {},
+        "scope_exclusions": answers.get("scope_exclusions")
+        or {"match_mode": "case_insensitive_term", "topics": []},
         "write_mode": {
             "enabled": bool(write_policy.get("enabled")),
             "require_single_approval": True,
@@ -599,6 +614,7 @@ def question_catalog() -> dict:
             "Which connectors are authenticated?",
             "Which write targets may be enabled after the single approval gate?",
             "What data may be sent to an LLM during onboarding and daily use?",
+            "Which topics, accounts, or projects should every daily close exclude?",
         ],
         "modules": {
             module_id: manifest.get("onboarding", {})

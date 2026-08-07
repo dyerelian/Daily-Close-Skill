@@ -23,6 +23,10 @@
     "llm_data_level": "setup_answers_only",
     "allow_raw_external_content": false
   },
+  "scope_exclusions": {
+    "match_mode": "case_insensitive_term",
+    "topics": []
+  },
   "write_policy": {
     "enabled": false,
     "external_writes_enabled": false,

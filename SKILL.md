@@ -1,6 +1,6 @@
 ---
 name: close-day
-description: Run and onboard a modular end-of-day close-out workflow with selectable modules for GTD review, Outlook/Teams/Gmail/Slack/Granola/Atlassian sweeps, daily planning, source-of-truth updates, and a Google-Sheets-compatible CRM. Use when the user says close my day, end of day, EOD, wrap up the day, daily review, plan tomorrow, install or configure close-day modules, run the onboarding wizard, include CRM follow-ups, create a CRM seed from email, or run a read-first proposal gate before GTD/CRM/document/Confluence writes.
+description: Run and onboard a modular end-of-day close-out workflow with selectable modules for GTD review, Outlook/Teams/Gmail/Slack/Granola/Atlassian sweeps, daily planning, source-of-truth updates, Jira ticket proposals, and a Google-Sheets-compatible CRM. Use when the user says close my day, end of day, EOD, wrap up the day, daily review, plan tomorrow, install or configure close-day modules, run the onboarding wizard, include CRM follow-ups, create a CRM seed from email, or run a read-first proposal gate before Jira/GTD/CRM/document/Confluence writes.
 ---
 
 # close-day
@@ -15,6 +15,12 @@ user approves the proposal and the local config permits that write target.
    `~/.codex/skills/close-day`.
 2. Load `config/daily-close.local.json` when it exists. Otherwise load
    `config/daily-close.example.json` and treat all writes as disabled.
+   When `scope_exclusions.topics` is present, apply every listed topic across all enabled
+   modules. Match the topic name and `match_terms` case-insensitively as standalone terms or
+   clear project/account references. Broad source sweeps may retrieve excluded material, but
+   inspect it only far enough to distinguish it from in-scope work, then omit it from analysis,
+   proposals, plans, CRM, Jira, source-of-truth updates, and generated artifacts. A user may
+   override an exclusion for one run only by explicitly naming the excluded topic.
 3. Run:
    `python scripts/validate_config.py --config <config-path>`
 4. Run:
@@ -69,6 +75,7 @@ when `write_mode.enabled` is true in config.
 
 Gather everything first, then show one consolidated proposal. The proposal should include:
 
+- proposed new Jira tickets, listed first when any are candidates
 - source coverage and any skipped modules
 - items to mark complete or carry forward
 - new captures and waiting-for items
@@ -79,6 +86,26 @@ Gather everything first, then show one consolidated proposal. The proposal shoul
 
 Wait for explicit approval. After approval, execute only approved lines. If the user edits the
 proposal, treat the edited proposal as the executable scope.
+
+### Jira Ticket Creation Gate
+
+Always put proposed new Jira tickets first in the consolidated proposal. Before proposing them,
+search Jira read-only for duplicates or existing work that already covers the capture.
+
+For each proposed ticket, list:
+
+- exact summary
+- project and issue type
+- intended assignee
+- due date, or `none` when no source-backed date exists
+- parent or related issue, when applicable
+- concise scope and acceptance criteria
+- duplicate-search result
+
+Do not create any Jira ticket until the user explicitly approves the displayed ticket list.
+General approval of the rest of the close-day proposal does not approve Jira ticket creation when
+the exact tickets were not listed. If the user approves only a subset or edits a ticket, create
+only that final approved set. Never silently add another Jira ticket during execution.
 
 ## Close-Out Flow
 
@@ -119,6 +146,21 @@ User-specific paths, accounts, and enabled-module choices belong in
 `config/daily-close.local.json`. This file is ignored from git. Keep write targets disabled in
 local smoke tests unless the user explicitly approves a live close-out run.
 
+Persistent topic exclusions also belong in the local profile:
+
+```json
+"scope_exclusions": {
+  "match_mode": "case_insensitive_term",
+  "topics": [
+    {
+      "name": "Example excluded project",
+      "match_terms": ["EXAMPLE"],
+      "reason": "User-requested exclusion"
+    }
+  ]
+}
+```
+
 The base local profile may include these modules:
 
 - `calendar-outlook`
@@ -137,6 +179,7 @@ The base local profile may include these modules:
 - Reads are allowed only from enabled module sources.
 - External writes are never allowed during sweep/gather phases.
 - Gmail, Slack, Granola, Teams, Outlook, Jira, and Confluence scans are read-only until approval.
+- Jira ticket creation always requires the Jira-specific proposal list and explicit user approval.
 - Gmail-driven CRM updates are proposals, not silent writes.
 - Google Sheets live writes are gated on an available connector or explicit integration path.
 - Keep source evidence compact: message IDs, thread IDs, subject, date, sender, snippet, and link.

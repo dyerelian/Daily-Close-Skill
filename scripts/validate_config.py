@@ -136,6 +136,43 @@ def validate_module_config(
             )
 
 
+def validate_scope_exclusions(config: dict, errors: list[str]) -> None:
+    exclusions = config.get("scope_exclusions")
+    if exclusions is None:
+        return
+    if not isinstance(exclusions, dict):
+        errors.append("scope_exclusions must be an object")
+        return
+
+    match_mode = exclusions.get("match_mode", "case_insensitive_term")
+    if match_mode != "case_insensitive_term":
+        errors.append(
+            "scope_exclusions.match_mode must be case_insensitive_term"
+        )
+
+    topics = exclusions.get("topics")
+    if not isinstance(topics, list):
+        errors.append("scope_exclusions.topics must be an array")
+        return
+
+    for index, topic in enumerate(topics):
+        label = f"scope_exclusions.topics[{index}]"
+        if not isinstance(topic, dict):
+            errors.append(f"{label} must be an object")
+            continue
+        name = topic.get("name")
+        if not isinstance(name, str) or not name.strip():
+            errors.append(f"{label}.name must be a non-empty string")
+        terms = topic.get("match_terms")
+        if not isinstance(terms, list) or not terms:
+            errors.append(f"{label}.match_terms must be a non-empty array")
+        elif any(not isinstance(term, str) or not term.strip() for term in terms):
+            errors.append(f"{label}.match_terms must contain non-empty strings")
+        reason = topic.get("reason")
+        if reason is not None and not isinstance(reason, str):
+            errors.append(f"{label}.reason must be a string when provided")
+
+
 def validate_config(config_path: Path, strict_paths: bool) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
@@ -149,6 +186,8 @@ def validate_config(config_path: Path, strict_paths: bool) -> tuple[list[str], l
     for key in ("profile_name", "owner", "write_mode", "enabled_modules"):
         if key not in config:
             errors.append(f"config missing required key: {key}")
+
+    validate_scope_exclusions(config, errors)
 
     enabled = config.get("enabled_modules")
     if not isinstance(enabled, list):
