@@ -1,107 +1,83 @@
 {
-  "schema_version": 1,
-  "runtime": {
-    "mode": "codex",
-    "profile_type": "solo_operator",
-    "artifact_creation": "templates_config",
-    "artifact_root": "outputs/onboarding/example-workspace"
-  },
+  "schema_version": 2,
+  "profile": {"id": "my-close", "name": "My Close"},
   "owner": {
     "name": "Example User",
     "primary_email": "user@example.com",
-    "timezone": "America/Los_Angeles",
-    "workdays": [
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday"
-    ],
+    "timezone": "UTC"
+  },
+  "schedule": {
+    "workdays": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
     "close_out_time": "17:00"
   },
+  "scopes": [
+    {
+      "id": "personal",
+      "type": "personal",
+      "name": "Personal",
+      "aliases": ["Personal"],
+      "domains": [],
+      "include_terms": [],
+      "exclude_terms": [],
+      "source_bindings": ["user@example.com"]
+    }
+  ],
+  "routing": {"global_exclusions": []},
+  "artifacts": {
+    "workspace_root": "~/Documents/close-day",
+    "path_overrides": {},
+    "exports": {"docx": false, "xlsx": false}
+  },
+  "features": {
+    "daily_takeaways": {"enabled": true, "max_items": 3},
+    "recurring_meeting_recap": {"enabled": true},
+    "docx_page_numbers": true
+  },
   "privacy": {
-    "llm_data_level": "setup_answers_only",
-    "allow_raw_external_content": false
+    "allow_raw_external_content": false,
+    "retain_source_snippets": false
   },
-  "scope_exclusions": {
-    "match_mode": "case_insensitive_term",
-    "topics": []
-  },
-  "write_policy": {
-    "enabled": false,
+  "permissions": {
     "external_writes_enabled": false,
-    "document_generation_enabled": false,
+    "local_artifact_writes_enabled": false,
     "crm_writes_enabled": false
   },
   "systems": {
-    "email": {
-      "provider": "gmail",
-      "account": "user@example.com",
-      "routine_query": "newer_than:7d -in:spam -in:trash"
-    },
-    "calendar": {
-      "provider": "outlook",
-      "days_ahead": 1
-    },
-    "tasks": {
-      "mode": "create_new",
-      "existing_path": null,
-      "allow_writes_after_approval": false
-    },
-    "crm": {
-      "mode": "create_new",
-      "existing_path": null,
-      "allow_live_sheet_writes": false,
-      "seed_terms": [
+    "mail": {
+      "window": "7d",
+      "providers": [
         {
-          "category": "active_customer_program",
-          "account_hint": "Example Customer",
-          "query_terms": [
-            "Example Customer",
-            "pilot"
-          ]
-        },
-        {
-          "category": "partner_led_pipeline",
-          "account_hint": "Example Partner",
-          "query_terms": [
-            "Example Partner",
-            "opportunity"
-          ]
+          "provider": "gmail",
+          "account": "user@example.com",
+          "connector": "gmail",
+          "configured": false,
+          "scope_ids": ["personal"]
         }
       ]
     },
-    "meetings": {
-      "granola": false,
-      "teams_local_cache": false
+    "calendar": {
+      "days_ahead": 1,
+      "providers": [
+        {
+          "provider": "google",
+          "account": "user@example.com",
+          "connector": "google-calendar",
+          "configured": false,
+          "scope_ids": ["personal"]
+        }
+      ]
     },
-    "chat": {
-      "slack": false,
-      "slack_channels": []
+    "tasks": {
+      "provider": "portable",
+      "existing_path": null,
+      "allow_writes_after_approval": false
     },
-    "source_of_truth": {
-      "mode": "local_files",
-      "allow_confluence_writes": false
-    },
-    "documents": {
-      "daily_plan": "docx",
-      "daily_plan_dir": null,
-      "eod_log_dir": null,
-      "agenda_dir": null
-    }
-  },
-  "connectors": {
-    "gmail": {
-      "configured": true
-    },
-    "slack": {
-      "configured": false
-    },
-    "granola": {
-      "configured": false
-    },
-    "atlassian": {
-      "configured": false
+    "optional_modules": {
+      "granola-meetings": {"enabled": false, "connector_configured": false},
+      "slack-sweep": {"enabled": false, "connector_configured": false, "channels": []},
+      "teams-local-cache": {"enabled": false},
+      "source-of-truth": {"enabled": false, "connector_configured": false},
+      "crm-google-sheet": {"enabled": false, "connector_configured": false}
     }
   }
 }

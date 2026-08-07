@@ -1,7 +1,7 @@
 # CRM Google Sheet Module
 
 Read this reference when `crm-google-sheet` is enabled or when the user asks to create a CRM seed
-from Gmail, update CRM rows, or include CRM follow-ups in the close-out.
+from Gmail or Outlook, update CRM rows, or include CRM follow-ups in the close-out.
 
 ## Sheets
 
@@ -66,9 +66,9 @@ Use `scripts/generate_crm_workbook.py` to create the workbook and optional CSV s
 Use the `Lists` tab for stages, statuses, relationship types, priorities, channels, follow-up
 statuses, and owners. Keep data validation list-backed where possible.
 
-## Gmail Proposal Workflow
+## Mail Proposal Workflow
 
-Use Gmail-native search first. Keep searches narrow and recent. For initial seed scans, search
+Use provider-native mail search first. Keep searches narrow and recent. For initial seed scans, search
 user-provided account, customer, prospect, program, and partner terms. Common categories:
 
 - active customer or program
@@ -78,7 +78,8 @@ user-provided account, customer, prospect, program, and partner terms. Common ca
 - partner or ecosystem relationship
 - partner-led pipeline
 
-Pass Gmail search/read output to `scripts/propose_crm_from_gmail.py`. The script emits a dry-run
+Normalize Gmail or Outlook search/read output, then pass it to `scripts/propose_crm_from_mail.py`.
+The script emits a dry-run
 proposal containing:
 
 - new account candidates

@@ -1,0 +1,33 @@
+{
+  "id": "daily-artifacts",
+  "display_name": "Daily Artifacts",
+  "description": "Create canonical Markdown/JSON plans, agendas, tasks, logs, and state with optional DOCX/XLSX exports.",
+  "required_connectors": ["local:file-system"],
+  "read_sources": [
+    {"type": "approved_close_payload", "mode": "generated from approved proposal"}
+  ],
+  "write_targets": [
+    {"type": "markdown_json", "path_config_key": "artifacts.workspace_root", "requires_approval": true},
+    {"type": "docx_xlsx_export", "path_config_key": "artifacts.workspace_root", "requires_approval": true}
+  ],
+  "config_schema": {
+    "type": "object",
+    "required": ["enabled"],
+    "properties": {"enabled": {"type": "boolean"}}
+  },
+  "onboarding": {
+    "question": "Where should close-day store plans, agendas, tasks, logs, and state?",
+    "default_for_profiles": ["personal", "organization", "multi_organization"],
+    "setup_questions": [
+      "Choose one workspace root.",
+      "Override any derived subfolders?",
+      "Enable optional DOCX or XLSX exports?"
+    ],
+    "connector_probes": ["Check workspace paths without creating them until approval."],
+    "required_artifacts": ["Plans, Agendas, Tasks, Logs, and State folders."],
+    "optional_artifacts": ["DOCX plans/agendas and XLSX task exports."],
+    "config_keys": ["artifacts.workspace_root", "artifacts.path_overrides", "artifacts.exports"]
+  },
+  "enabled_by_default": true,
+  "proposal_output_type": "daily_artifact_preview"
+}

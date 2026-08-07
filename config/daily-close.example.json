@@ -1,95 +1,100 @@
 {
-  "profile_name": "portable-example",
+  "schema_version": 2,
+  "profile": {
+    "id": "portable-example",
+    "name": "Portable Example"
+  },
   "owner": {
     "name": "Example User",
     "primary_email": "user@example.com",
-    "timezone": "America/Los_Angeles"
+    "timezone": "UTC"
   },
-  "scope_exclusions": {
-    "match_mode": "case_insensitive_term",
-    "topics": []
+  "schedule": {
+    "workdays": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+    "close_out_time": "17:00"
   },
-  "write_mode": {
-    "enabled": false,
-    "require_single_approval": true,
+  "scopes": [
+    {
+      "id": "personal",
+      "type": "personal",
+      "name": "Personal",
+      "aliases": ["Personal"],
+      "domains": [],
+      "include_terms": [],
+      "exclude_terms": [],
+      "source_bindings": ["personal@example.com"]
+    },
+    {
+      "id": "example-org",
+      "type": "organization",
+      "name": "Example Organization",
+      "aliases": ["Example Org"],
+      "domains": ["example.org"],
+      "include_terms": ["Example Project"],
+      "exclude_terms": [],
+      "source_bindings": ["user@example.org"]
+    }
+  ],
+  "routing": {
+    "unclassified_policy": "pause_and_ask",
+    "global_exclusions": []
+  },
+  "artifacts": {
+    "workspace_root": "~/Documents/close-day",
+    "path_overrides": {},
+    "canonical": {"markdown": true, "json": true},
+    "exports": {"docx": false, "xlsx": false}
+  },
+  "features": {
+    "daily_takeaways": {"enabled": true, "max_items": 3},
+    "recurring_meeting_recap": {"enabled": true},
+    "docx_page_numbers": true
+  },
+  "privacy": {
+    "allow_raw_external_content": false,
+    "retain_source_snippets": false
+  },
+  "permissions": {
+    "proposal_required": true,
     "external_writes_enabled": false,
-    "document_generation_enabled": false,
+    "local_artifact_writes_enabled": false,
+    "jira_ticket_approval_required": true,
     "crm_writes_enabled": false
   },
-  "enabled_modules": [
-    "gmail-sweep",
-    "crm-google-sheet"
-  ],
-  "paths": {
-    "python": "python",
-    "gtd_workbook": null,
-    "daily_plan_dir": null,
-    "eod_log_dir": null,
-    "agenda_dir": null,
-    "add_gtd_items_script": null,
-    "agenda_creator_script": null,
-    "source_of_truth_skill": null
-  },
-  "connectors": {
-    "gmail": {
-      "account": "user@example.com",
-      "max_results_per_query": 10,
-      "default_window": "newer_than:365d"
-    },
-    "slack": {
-      "workspace": null
-    },
-    "granola": {},
-    "atlassian": {}
-  },
-  "crm": {
-    "workbook_path": "assets/crm/daily-close-crm-template.xlsx",
-    "csv_seed_dir": "assets/crm/csv_seed",
-    "proposal_output_dir": "outputs/crm-proposals",
-    "gmail_seed_queries": [
-      {
-        "category": "active_customer_program",
-        "account_hint": "Example Customer Program",
-        "query": "newer_than:365d -in:spam -in:trash (\"Example Customer\" OR \"Example Program\")"
-      },
-      {
-        "category": "active_opportunity_customer_pursuit",
-        "account_hint": "Example Opportunity",
-        "query": "newer_than:365d -in:spam -in:trash (\"Example Opportunity\" OR pilot)"
-      },
-      {
-        "category": "active_research_customer_collaboration",
-        "account_hint": "Example Research Collaboration",
-        "query": "newer_than:365d -in:spam -in:trash (\"Example Research\" OR collaboration)"
-      },
-      {
-        "category": "award_program_onboarding",
-        "account_hint": "Example Award Program",
-        "query": "newer_than:365d -in:spam -in:trash (\"Example Award\" OR onboarding)"
-      },
-      {
-        "category": "partner_ecosystem_relationship",
-        "account_hint": "Example Ecosystem Partner",
-        "query": "newer_than:365d -in:spam -in:trash (\"Example Partner\" OR ecosystem)"
-      },
-      {
-        "category": "partner_led_pipeline",
-        "account_hint": "Example Partner-Led Pipeline",
-        "query": "newer_than:365d -in:spam -in:trash (\"Partner Pipeline\" OR conference)"
-      }
-    ]
-  },
+  "enabled_modules": ["mail-sweep", "calendar-sweep", "task-store", "daily-artifacts"],
   "modules": {
-    "gmail-sweep": {
+    "mail-sweep": {
       "enabled": true,
-      "account": "user@example.com",
-      "default_query": "newer_than:7d -in:spam -in:trash"
+      "window": "7d",
+      "providers": [
+        {
+          "provider": "gmail",
+          "account": "user@example.com",
+          "connector": "gmail",
+          "configured": false,
+          "scope_ids": ["personal", "example-org"]
+        }
+      ]
     },
-    "crm-google-sheet": {
+    "calendar-sweep": {
       "enabled": true,
-      "workbook_path": "assets/crm/daily-close-crm-template.xlsx",
-      "proposal_output_dir": "outputs/crm-proposals",
-      "allow_live_sheet_writes": false
-    }
+      "days_ahead": 1,
+      "providers": [
+        {
+          "provider": "google",
+          "account": "user@example.com",
+          "connector": "google-calendar",
+          "configured": false,
+          "scope_ids": ["personal", "example-org"]
+        }
+      ]
+    },
+    "task-store": {
+      "enabled": true,
+      "provider": "portable",
+      "existing_path": null,
+      "allow_writes": false
+    },
+    "daily-artifacts": {"enabled": true}
   }
 }

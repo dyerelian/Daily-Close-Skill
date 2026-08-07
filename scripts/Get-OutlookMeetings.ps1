@@ -6,8 +6,8 @@
   Used by the `close-day` skill to gather tomorrow's meetings so it can draft an agenda for
   each. Talks to a locally-installed Outlook through its COM automation interface using
   LATE-BOUND IDispatch. It first attaches to the already-running, authenticated Outlook session
-  (Marshal.GetActiveObject) and only falls back to launching a new instance. Do NOT switch this
-  to Python win32com / EnsureDispatch — the gencache/typelib path is broken on this machine.
+  (Marshal.GetActiveObject) and only falls back to launching a new instance. Late binding avoids
+  a generated Python typelib dependency and keeps the adapter self-contained.
 
   Calendar reads only. The script never sends, moves, or modifies any Outlook item.
 

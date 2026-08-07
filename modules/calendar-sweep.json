@@ -1,0 +1,38 @@
+{
+  "id": "calendar-sweep",
+  "display_name": "Calendar Sweep",
+  "description": "Read Google Calendar and Microsoft Outlook Calendar through configured connectors or the Windows Outlook adapter.",
+  "required_connectors": [],
+  "read_sources": [
+    {"type": "provider_adapter", "providers": ["google", "outlook"], "mode": "read-only"}
+  ],
+  "write_targets": [],
+  "supported_providers": {
+    "google": ["connector"],
+    "outlook": ["connector", "outlook-com"]
+  },
+  "config_schema": {
+    "type": "object",
+    "required": ["enabled", "providers"],
+    "properties": {
+      "enabled": {"type": "boolean"},
+      "providers": {"type": "array"},
+      "days_ahead": {"type": "integer"}
+    }
+  },
+  "onboarding": {
+    "question": "Which Google or Microsoft calendars should the close read?",
+    "default_for_profiles": ["personal", "organization", "multi_organization"],
+    "setup_questions": [
+      "Which provider and calendar/account should be read?",
+      "Which profile scopes may receive meetings from this source?",
+      "Is a connector authenticated, or should Windows Outlook COM be used?"
+    ],
+    "connector_probes": ["List calendar metadata for each configured provider without reading event bodies."],
+    "required_artifacts": [],
+    "optional_artifacts": [],
+    "config_keys": ["modules.calendar-sweep.providers", "modules.calendar-sweep.days_ahead"]
+  },
+  "enabled_by_default": false,
+  "proposal_output_type": "meeting_schedule"
+}

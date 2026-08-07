@@ -1,0 +1,61 @@
+# Provider adapter reference
+
+## Contents
+
+1. Provider support
+2. Normalized evidence contract
+3. Source bindings and privacy
+4. Failure behavior
+
+## Provider support
+
+Use connector-backed Gmail and Google Calendar adapters. Use connector-backed Outlook mail/calendar
+on every platform, with bundled read-only Outlook COM scripts as a Windows fallback. Keep Slack,
+Granola, Teams local cache, Jira, and Confluence optional. Never implement or store OAuth secrets in
+this skill.
+
+Treat the following provider-specific data as source metadata, not profile identity: message or
+event ids, thread ids, calendar ids, account addresses, workspace/channel ids, timestamps, links,
+and participant addresses.
+
+## Normalized evidence contract
+
+Normalize every gathered candidate before routing:
+
+```json
+{
+  "id": "provider-stable-id",
+  "kind": "message|meeting|task|note|issue|manual",
+  "title": "Short title",
+  "text": "Compact actionable summary",
+  "participants": ["person@example.org"],
+  "timestamp": "ISO-8601 timestamp",
+  "source": {
+    "provider": "gmail|google|outlook|slack|teams|granola|jira|confluence",
+    "account": "configured account",
+    "workspace": "optional workspace",
+    "channel": "optional channel",
+    "calendar": "optional calendar",
+    "id": "provider-stable-id",
+    "link": "optional deep link"
+  }
+}
+```
+
+Keep `text` compact. Do not copy full message bodies, transcripts, or pages unless the user permits
+raw external content and the close genuinely needs it.
+
+## Source bindings and privacy
+
+Associate each configured provider/account/calendar/workspace/channel with allowed `scope_ids`.
+Use exact source bindings before content-based rules. A source may feed several scopes, but every
+individual item still requires a unique classification or an explicit user decision.
+
+Do not pass excluded material to downstream analysis. Do not reuse evidence from one profile while
+running another profile.
+
+## Failure behavior
+
+Probe connectors during onboarding without requesting content. If a selected connector is missing,
+report the module and provider as a coverage gap. Continue only after the user agrees to available
+coverage. Never replace a missing Google or Microsoft source with an unrelated account or provider.

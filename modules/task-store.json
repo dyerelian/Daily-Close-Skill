@@ -1,0 +1,34 @@
+{
+  "id": "task-store",
+  "display_name": "Task Store",
+  "description": "Maintain portable Markdown/JSON tasks or export to an existing XLSX task workbook after approval.",
+  "required_connectors": ["local:file-system"],
+  "read_sources": [
+    {"type": "portable_json_or_markdown", "path_config_key": "artifacts.paths.tasks", "mode": "read-only during sweep"},
+    {"type": "xlsx", "path_config_key": "modules.task-store.existing_path", "mode": "read-only during sweep"}
+  ],
+  "write_targets": [
+    {"type": "local_task_artifact", "path_config_key": "artifacts.paths.tasks", "requires_approval": true}
+  ],
+  "config_schema": {
+    "type": "object",
+    "required": ["enabled", "provider", "allow_writes"],
+    "properties": {
+      "enabled": {"type": "boolean"},
+      "provider": {"type": "string"},
+      "existing_path": {"type": ["string", "null"]},
+      "allow_writes": {"type": "boolean"}
+    }
+  },
+  "onboarding": {
+    "question": "Should close-day create portable tasks or connect an existing workbook?",
+    "default_for_profiles": ["personal", "organization", "multi_organization"],
+    "setup_questions": ["Use portable Markdown/JSON, an existing XLSX workbook, or no task store?"],
+    "connector_probes": ["Check the selected task path and write policy."],
+    "required_artifacts": ["Task output folder or existing workbook."],
+    "optional_artifacts": ["XLSX export."],
+    "config_keys": ["modules.task-store.provider", "modules.task-store.existing_path", "modules.task-store.allow_writes"]
+  },
+  "enabled_by_default": true,
+  "proposal_output_type": "task_updates"
+}

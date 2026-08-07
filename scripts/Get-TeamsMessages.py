@@ -4,9 +4,8 @@ r"""Read a single day's Microsoft Teams chat/channel messages and emit them as J
 Used by the `close-day` skill to sweep the Teams messages the user exchanged today, so it can
 spot asks / commitments / follow-ups the same way the Outlook Sent Mail sweep does.
 
-There is no Teams MCP, Graph SDK, or COM object model available on this machine (and the
-corporate GPO that blocks Outlook COM bodies likely blocks Graph too), so this reads the
-**new Teams (MSTeams UWP) client's local Chromium IndexedDB LevelDB cache** directly with a
+When no Teams connector or Graph integration is configured, this optional Windows adapter reads
+the **new Teams (MSTeams UWP) client's local Chromium IndexedDB LevelDB cache** directly with a
 vendored, pure-Python Chromium reader (`scripts/vendor/ccl_chromium_reader`, no pip / no
 native deps). Messages live in the `:replychain-manager:` database, `replychains` object
 store, inside each record's `messageMap`; chat titles come from `:conversation-manager:`.
@@ -16,8 +15,8 @@ schema can change with Teams updates. It NEVER writes to Teams. On any failure (
 cache, schema drift, lock) it prints an `error`/`warning` in the JSON and exits non-zero so
 the skill can fall back to asking the user to paste the relevant chats.
 
-Run with the full interpreter path (bare `py` is broken on this machine):
-    & 'C:\Program Files\Python312\python.exe' Get-TeamsMessages.py --out "$env:TEMP\teams-today.json"
+Example:
+    python Get-TeamsMessages.py --out "$env:TEMP\teams-today.json"
 """
 
 from __future__ import annotations

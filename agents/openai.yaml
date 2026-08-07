@@ -1,7 +1,7 @@
 interface:
   display_name: "Close Day"
-  short_description: "Modular EOD close-out with gated Jira and CRM writes"
-  default_prompt: "Use $close-day to close my day, list any proposed new Jira tickets first for approval, and present one consolidated proposal before writing anything."
+  short_description: "Multi-profile EOD close and planning workflow"
+  default_prompt: "Use $close-day to close my selected personal or organization profile and present the scoped proposal before writing anything."
 
 policy:
   allow_implicit_invocation: true

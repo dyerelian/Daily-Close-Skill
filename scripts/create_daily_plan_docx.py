@@ -4,8 +4,9 @@
 The Daily Plan is the forward-looking output of the `close-day` skill. Its layout,
 top to bottom, is:
 
-    inspirational quote  ->  title/date  ->  summary  ->  MIT ("The Frog")  ->
-    Daily Big 3  ->  top action items  ->  other action items  ->
+    inspirational quote  ->  title/date  ->  summary  ->
+    optional Daily Takeaways  ->  MIT ("The Frog")  ->  Daily Big 3  ->
+    top action items  ->  other action items  ->
     one full agenda section per meeting (each on its own page)
 
 Per-meeting agendas are rendered with the EXACT same logic as the `agenda-creator`
@@ -13,8 +14,8 @@ skill: this script imports `create_agenda_docx.py` as a module and reuses its
 OpenXML helpers (run/paragraph builders, `document_body`, the package-part writers,
 and the 5-10-word send-ahead-bullet validation). Standard library only.
 
-Run with the full interpreter path (bare `py` is broken on this machine):
-    & 'C:\\Program Files\\Python312\\python.exe' create_daily_plan_docx.py --input plan.json --output "Daily Plan 2026-06-27.docx"
+Example:
+    python create_daily_plan_docx.py --input plan.json --output "Daily Plan 2026-06-27.docx"
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ def default_agenda_script() -> Path:
     if configured:
         return Path(configured)
     candidates = [
+        Path(__file__).with_name("create_agenda_docx.py"),
         Path.home() / ".codex" / "skills" / "agenda-creator" / "scripts" / "create_agenda_docx.py",
         Path.home() / ".claude" / "skills" / "agenda-creator" / "scripts" / "create_agenda_docx.py",
     ]
@@ -72,6 +74,16 @@ EXAMPLE_DATA = {
         "author": "Jim Rohn",
     },
     "summary": "Light meeting load; protect the morning for the customer follow-up write-up.",
+    "takeaways": {
+        "source_day": "2026-06-26",
+        "well": [
+            "Closed an open decision with a clear owner.",
+            "Protected the highest-leverage work block.",
+        ],
+        "improve": [
+            "Send meeting pre-reads one working day earlier.",
+        ],
+    },
     "mit": "Draft the customer follow-up one-pager (hardest, highest leverage).",
     "daily_big_3": [
         "Customer follow-up one-pager drafted and shared for review",
@@ -150,6 +162,32 @@ def bullet_block(parts: list[str], heading: str, values: object) -> None:
     parts.append(ac.simple_paragraph(heading, style="Heading1"))
     for item in items:
         parts.append(ac.simple_paragraph(item, bullet=True))
+
+
+def takeaways_block(parts: list[str], takeaways: object) -> None:
+    """Render an optional, concrete reflection without padding empty lists."""
+    ac = agenda()
+    if not isinstance(takeaways, dict):
+        return
+    well = [ac.text(value) for value in (takeaways.get("well") or []) if ac.text(value).strip()]
+    improve = [
+        ac.text(value) for value in (takeaways.get("improve") or []) if ac.text(value).strip()
+    ]
+    if not well and not improve:
+        return
+    heading = "Daily Takeaways"
+    source_day = ac.text(takeaways.get("source_day")).strip()
+    if source_day:
+        heading += f" (from {source_day})"
+    parts.append(ac.simple_paragraph(heading, style="Heading1"))
+    if well:
+        parts.append(ac.paragraph_xml([ac.run_xml("Did well:", bold=True)]))
+        for item in well:
+            parts.append(ac.simple_paragraph(item, bullet=True))
+    if improve:
+        parts.append(ac.paragraph_xml([ac.run_xml("To improve next time:", bold=True)]))
+        for item in improve:
+            parts.append(ac.simple_paragraph(item, bullet=True))
 
 
 def leveled_bullet(value: str, level: int = 0) -> str:
@@ -253,6 +291,47 @@ def numbering_xml() -> str:
 """
 
 
+FOOTER_REL_ID = "rId100"
+
+
+def footer_xml() -> str:
+    """Return a centered Page X of Y footer using Word fields."""
+    return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p>
+    <w:pPr><w:jc w:val="center"/></w:pPr>
+    <w:r><w:t xml:space="preserve">Page </w:t></w:r>
+    <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+    <w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>
+    <w:r><w:fldChar w:fldCharType="end"/></w:r>
+    <w:r><w:t xml:space="preserve"> of </w:t></w:r>
+    <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+    <w:r><w:instrText xml:space="preserve"> NUMPAGES </w:instrText></w:r>
+    <w:r><w:fldChar w:fldCharType="end"/></w:r>
+  </w:p>
+</w:ftr>
+"""
+
+
+def content_types_with_footer() -> str:
+    ac = agenda()
+    override = (
+        '  <Override PartName="/word/footer1.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>\n'
+    )
+    return ac.content_types_xml().replace("</Types>", override + "</Types>")
+
+
+def document_rels_with_footer() -> str:
+    ac = agenda()
+    relationship = (
+        f'  <Relationship Id="{FOOTER_REL_ID}" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" '
+        'Target="footer1.xml"/>\n'
+    )
+    return ac.document_rels_xml().replace("</Relationships>", relationship + "</Relationships>")
+
+
 def daily_plan_body(data: dict) -> str:
     ac = agenda()
     parts: list[str] = []
@@ -269,6 +348,8 @@ def daily_plan_body(data: dict) -> str:
         parts.append(ac.simple_paragraph("Summary", style="Heading1"))
         parts.append(ac.simple_paragraph(summary))
 
+    takeaways_block(parts, data.get("takeaways"))
+
     mit = ac.text(data.get("mit")).strip()
     if mit:
         parts.append(ac.simple_paragraph("Most Important Task — “The Frog”", style="Heading1"))
@@ -282,23 +363,29 @@ def daily_plan_body(data: dict) -> str:
     agendas = data.get("agendas") or []
     if agendas:
         parts.append(ac.simple_paragraph("Meeting Agendas", style="Heading1"))
-        for agenda in agendas:
-            if not isinstance(agenda, dict):
+        for agenda_payload in agendas:
+            if not isinstance(agenda_payload, dict):
                 continue
             parts.append(page_break())
             # Reuse the exact agenda rendering (also validates send-ahead bullets).
-            parts.append(ac.document_body(agenda))
+            parts.append(ac.document_body(agenda_payload))
 
     return "\n".join(parts)
 
 
 def document_xml(data: dict) -> str:
     body = daily_plan_body(data)
+    footer_reference = (
+        f'<w:footerReference w:type="default" r:id="{FOOTER_REL_ID}"/>'
+        if data.get("page_numbers", True)
+        else ""
+    )
     return f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <w:body>
     {body}
     <w:sectPr>
+      {footer_reference}
       <w:pgSz w:w="12240" w:h="15840"/>
       <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/>
     </w:sectPr>
@@ -309,14 +396,23 @@ def document_xml(data: dict) -> str:
 
 def create_docx(data: dict, output_path: Path) -> None:
     ac = agenda()
+    page_numbers = bool(data.get("page_numbers", True))
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as docx:
-        docx.writestr("[Content_Types].xml", ac.content_types_xml())
+        docx.writestr(
+            "[Content_Types].xml",
+            content_types_with_footer() if page_numbers else ac.content_types_xml(),
+        )
         docx.writestr("_rels/.rels", ac.root_rels_xml())
-        docx.writestr("word/_rels/document.xml.rels", ac.document_rels_xml())
+        docx.writestr(
+            "word/_rels/document.xml.rels",
+            document_rels_with_footer() if page_numbers else ac.document_rels_xml(),
+        )
         docx.writestr("word/document.xml", document_xml(data))
         docx.writestr("word/styles.xml", ac.styles_xml())
         docx.writestr("word/numbering.xml", numbering_xml())
+        if page_numbers:
+            docx.writestr("word/footer1.xml", footer_xml())
 
 
 def load_data(args: argparse.Namespace) -> dict:

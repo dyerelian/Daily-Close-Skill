@@ -8,6 +8,8 @@ import json
 import sys
 from pathlib import Path
 
+from close_day_config import resolve_profile
+
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_DIR = ROOT / "modules"
@@ -65,12 +67,23 @@ def print_table(modules: list[dict], enabled: set[str]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="List close-day modules.")
     parser.add_argument("--config", help="Config JSON to use for enabled status.")
+    parser.add_argument("--profile", help="Named schema-v2 profile from the private registry.")
+    parser.add_argument("--config-root", help="Override the private close-day config directory.")
     parser.add_argument("--json", action="store_true", help="Emit JSON.")
     args = parser.parse_args()
 
     try:
         modules = module_manifests()
-        enabled = load_enabled(args.config)
+        if args.config:
+            enabled = load_enabled(args.config)
+        elif args.profile or args.config_root:
+            profile, _ = resolve_profile(
+                args.profile,
+                Path(args.config_root).expanduser() if args.config_root else None,
+            )
+            enabled = set(profile.get("enabled_modules") or [])
+        else:
+            enabled = set()
         if args.json:
             payload = {"modules": modules, "enabled_modules": sorted(enabled)}
             print(json.dumps(payload, indent=2))

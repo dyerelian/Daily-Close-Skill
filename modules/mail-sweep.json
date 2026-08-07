@@ -1,0 +1,38 @@
+{
+  "id": "mail-sweep",
+  "display_name": "Mail Sweep",
+  "description": "Read Gmail and Microsoft Outlook mail through configured connectors or the Windows Outlook adapter.",
+  "required_connectors": [],
+  "read_sources": [
+    {"type": "provider_adapter", "providers": ["gmail", "outlook"], "mode": "read-only"}
+  ],
+  "write_targets": [],
+  "supported_providers": {
+    "gmail": ["connector"],
+    "outlook": ["connector", "outlook-com"]
+  },
+  "config_schema": {
+    "type": "object",
+    "required": ["enabled", "providers"],
+    "properties": {
+      "enabled": {"type": "boolean"},
+      "providers": {"type": "array"},
+      "window": {"type": "string"}
+    }
+  },
+  "onboarding": {
+    "question": "Which Google or Microsoft mail accounts should the close read?",
+    "default_for_profiles": ["personal", "organization", "multi_organization"],
+    "setup_questions": [
+      "Which provider and account should be read?",
+      "Which profile scopes may receive items from this source?",
+      "Is a connector authenticated, or should Windows Outlook COM be used?"
+    ],
+    "connector_probes": ["Probe each configured provider without requesting message content."],
+    "required_artifacts": [],
+    "optional_artifacts": [],
+    "config_keys": ["modules.mail-sweep.providers"]
+  },
+  "enabled_by_default": false,
+  "proposal_output_type": "mail_capture_candidates"
+}

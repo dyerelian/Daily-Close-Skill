@@ -1,0 +1,11 @@
+{
+  "title": "Example Organization Weekly Sync",
+  "subtitle": "Prepared agenda",
+  "last_meeting_recap": {
+    "summary": "Reviewed the rollout plan and assigned the open validation step.",
+    "follow_ups": ["Owner: confirm the validation date"],
+    "decisions": ["Keep the staged rollout"],
+    "talking_points": ["Confirm the remaining dependency"]
+  },
+  "items": ["Status", "Open decisions", "Next actions"]
+}

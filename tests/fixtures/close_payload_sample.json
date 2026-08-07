@@ -1,0 +1,28 @@
+{
+  "date": "2026-08-07",
+  "target_date": "2026-08-10",
+  "summary": "Protect the first work block and close the open decision.",
+  "takeaways": {
+    "well": [{"text": "Closed the decision loop", "scope_id": "example-org"}],
+    "improve": [{"text": "Send the pre-read earlier", "scope_id": "example-org"}]
+  },
+  "sections": {
+    "accomplished": [{"text": "Finished the review", "scope_id": "example-org"}],
+    "priorities": [{"text": "Draft the next-step memo", "scope_id": "example-org"}],
+    "tasks": [{"text": "Buy groceries", "scope_id": "personal"}],
+    "meetings": [{"text": "09:00 Weekly sync", "scope_id": "example-org"}]
+  },
+  "agendas": [
+    {
+      "title": "Example Organization Weekly Sync",
+      "scope_id": "example-org",
+      "last_meeting_recap": {
+        "summary": "Reviewed the rollout plan.",
+        "follow_ups": ["Confirm the validation date"],
+        "decisions": ["Keep the staged rollout"],
+        "talking_points": ["Resolve the remaining dependency"]
+      },
+      "items": ["Status", "Open decisions", "Next actions"]
+    }
+  ]
+}

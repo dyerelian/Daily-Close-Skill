@@ -1,0 +1,581 @@
+#!/usr/bin/env python3
+"""Shared schema-v2 profile, routing, and filesystem helpers for close-day."""
+
+from __future__ import annotations
+
+import json
+import os
+import platform
+import re
+import tempfile
+from pathlib import Path
+from typing import Any, Iterable
+
+
+SCHEMA_VERSION = 2
+REGISTRY_FILENAME = "registry.json"
+
+
+def slugify(value: str, fallback: str = "profile") -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.strip().lower()).strip("-")
+    return slug or fallback
+
+
+def default_config_root() -> Path:
+    """Return an OS-appropriate directory for private close-day configuration."""
+    override = os.environ.get("CLOSE_DAY_CONFIG_HOME")
+    if override:
+        return Path(override).expanduser()
+    system = platform.system()
+    if system == "Windows":
+        base = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
+        return Path(base) / "close-day"
+    if system == "Darwin":
+        return Path.home() / "Library" / "Application Support" / "close-day"
+    base = os.environ.get("XDG_CONFIG_HOME")
+    return (Path(base).expanduser() if base else Path.home() / ".config") / "close-day"
+
+
+def registry_path(config_root: Path | None = None) -> Path:
+    return (config_root or default_config_root()) / REGISTRY_FILENAME
+
+
+def profiles_dir(config_root: Path | None = None) -> Path:
+    return (config_root or default_config_root()) / "profiles"
+
+
+def profile_path(profile_id: str, config_root: Path | None = None) -> Path:
+    return profiles_dir(config_root) / f"{slugify(profile_id)}.json"
+
+
+def load_json(path: Path) -> Any:
+    with path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def atomic_write_json(path: Path, payload: Any) -> None:
+    """Write JSON without exposing a partially-written configuration file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2, ensure_ascii=False)
+            handle.write("\n")
+        os.replace(temporary, path)
+    except Exception:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def atomic_write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+        os.replace(temporary, path)
+    except Exception:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def derived_artifact_paths(workspace_root: str | Path) -> dict[str, str]:
+    root = Path(workspace_root).expanduser()
+    return {
+        "plans": str(root / "Plans"),
+        "agendas": str(root / "Agendas"),
+        "tasks": str(root / "Tasks"),
+        "logs": str(root / "Logs"),
+        "state": str(root / "State"),
+    }
+
+
+def resolved_artifact_paths(artifacts: dict) -> dict[str, str]:
+    root = Path(artifacts.get("workspace_root") or "close-day-workspace").expanduser()
+    derived = derived_artifact_paths(root)
+    overrides = artifacts.get("path_overrides") or {}
+    resolved = {}
+    for key, value in derived.items():
+        override = overrides.get(key)
+        if not override:
+            resolved[key] = value
+            continue
+        path = Path(override).expanduser()
+        resolved[key] = str(path if path.is_absolute() else root / path)
+    return resolved
+
+
+def default_registry(default_profile_id: str | None = None) -> dict:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "default_profile_id": default_profile_id,
+        "profiles": [],
+    }
+
+
+def load_registry(config_root: Path | None = None) -> dict:
+    path = registry_path(config_root)
+    if not path.exists():
+        return default_registry()
+    return load_json(path)
+
+
+def register_profile(profile: dict, config_root: Path | None = None, make_default: bool = False) -> Path:
+    root = (config_root or default_config_root()).expanduser().resolve()
+    profile_id = profile["profile"]["id"]
+    destination = profile_path(profile_id, root)
+    atomic_write_json(destination, profile)
+    registry = load_registry(root)
+    registry["schema_version"] = SCHEMA_VERSION
+    records = [record for record in registry.get("profiles") or [] if record.get("id") != profile_id]
+    records.append({"id": profile_id, "name": profile["profile"]["name"], "path": str(destination)})
+    registry["profiles"] = sorted(records, key=lambda record: record["id"])
+    if make_default or not registry.get("default_profile_id"):
+        registry["default_profile_id"] = profile_id
+    atomic_write_json(registry_path(root), registry)
+    return destination
+
+
+def resolve_profile(profile_id: str | None = None, config_root: Path | None = None) -> tuple[dict, Path]:
+    root = (config_root or default_config_root()).expanduser().resolve()
+    registry = load_registry(root)
+    if registry.get("schema_version") != SCHEMA_VERSION:
+        raise ValueError(
+            f"profile registry schema {registry.get('schema_version')} is unsupported; expected {SCHEMA_VERSION}"
+        )
+    selected = profile_id or registry.get("default_profile_id")
+    if not selected:
+        raise FileNotFoundError("No default close-day profile is configured.")
+    for record in registry.get("profiles") or []:
+        if record.get("id") == selected:
+            path = Path(record.get("path") or profile_path(selected, root)).expanduser()
+            if not path.is_absolute():
+                path = root / path
+            return load_json(path), path
+    path = profile_path(selected, root)
+    if path.exists():
+        return load_json(path), path
+    raise FileNotFoundError(f"close-day profile not found: {selected}")
+
+
+def _nonempty_string(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def validate_profile(profile: dict, strict_paths: bool = False) -> tuple[list[str], list[str]]:
+    errors: list[str] = []
+    warnings: list[str] = []
+    if profile.get("schema_version") != SCHEMA_VERSION:
+        errors.append(f"schema_version must be {SCHEMA_VERSION}")
+
+    metadata = profile.get("profile")
+    if not isinstance(metadata, dict):
+        errors.append("profile must be an object")
+    else:
+        if not _nonempty_string(metadata.get("id")):
+            errors.append("profile.id must be a non-empty string")
+        elif metadata.get("id") != slugify(metadata["id"]):
+            errors.append("profile.id must use lowercase letters, digits, and hyphens")
+        if not _nonempty_string(metadata.get("name")):
+            errors.append("profile.name must be a non-empty string")
+
+    owner = profile.get("owner")
+    if not isinstance(owner, dict):
+        errors.append("owner must be an object")
+    else:
+        for key in ("name", "timezone"):
+            if not _nonempty_string(owner.get(key)):
+                errors.append(f"owner.{key} must be a non-empty string")
+
+    schedule = profile.get("schedule") or {}
+    workdays = schedule.get("workdays")
+    allowed_days = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
+    if not isinstance(workdays, list) or not workdays or any(day not in allowed_days for day in workdays):
+        errors.append("schedule.workdays must be a non-empty array of weekday names")
+    close_time = schedule.get("close_out_time")
+    if not _nonempty_string(close_time) or not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", close_time):
+        errors.append("schedule.close_out_time must use 24-hour HH:MM")
+
+    scopes = profile.get("scopes")
+    if not isinstance(scopes, list) or not scopes:
+        errors.append("scopes must be a non-empty array")
+        scopes = []
+    seen: set[str] = set()
+    bindings_seen: dict[str, str] = {}
+    for index, scope in enumerate(scopes):
+        label = f"scopes[{index}]"
+        if not isinstance(scope, dict):
+            errors.append(f"{label} must be an object")
+            continue
+        scope_id = scope.get("id")
+        if not _nonempty_string(scope_id):
+            errors.append(f"{label}.id must be a non-empty string")
+        elif scope_id in seen:
+            errors.append(f"duplicate scope id: {scope_id}")
+        else:
+            seen.add(scope_id)
+        if scope.get("type") not in {"personal", "organization"}:
+            errors.append(f"{label}.type must be personal or organization")
+        if not _nonempty_string(scope.get("name")):
+            errors.append(f"{label}.name must be a non-empty string")
+        for key in ("aliases", "domains", "include_terms", "exclude_terms", "source_bindings"):
+            value = scope.get(key, [])
+            if not isinstance(value, list) or any(not _nonempty_string(item) for item in value):
+                errors.append(f"{label}.{key} must be an array of non-empty strings")
+        for binding in scope.get("source_bindings") or []:
+            normalized = binding.casefold()
+            if normalized in bindings_seen and bindings_seen[normalized] != scope_id:
+                errors.append(
+                    f"source binding is assigned to multiple scopes: {binding} "
+                    f"({bindings_seen[normalized]}, {scope_id})"
+                )
+            else:
+                bindings_seen[normalized] = scope_id
+
+    routing = profile.get("routing") or {}
+    if routing.get("unclassified_policy") != "pause_and_ask":
+        errors.append("routing.unclassified_policy must be pause_and_ask")
+    exclusions = routing.get("global_exclusions", [])
+    if not isinstance(exclusions, list):
+        errors.append("routing.global_exclusions must be an array")
+    else:
+        for index, exclusion in enumerate(exclusions):
+            if not isinstance(exclusion, dict) or not _nonempty_string(exclusion.get("name")):
+                errors.append(f"routing.global_exclusions[{index}] must have a non-empty name")
+                continue
+            terms = exclusion.get("match_terms")
+            if not isinstance(terms, list) or not terms or any(not _nonempty_string(term) for term in terms):
+                errors.append(f"routing.global_exclusions[{index}].match_terms must be non-empty strings")
+
+    artifacts = profile.get("artifacts")
+    if not isinstance(artifacts, dict) or not _nonempty_string(artifacts.get("workspace_root")):
+        errors.append("artifacts.workspace_root must be a non-empty string")
+    else:
+        canonical = artifacts.get("canonical") or {}
+        if not canonical.get("markdown") or not canonical.get("json"):
+            errors.append("artifacts.canonical must enable markdown and json")
+        overrides = artifacts.get("path_overrides") or {}
+        if not isinstance(overrides, dict):
+            errors.append("artifacts.path_overrides must be an object")
+        else:
+            unknown_overrides = sorted(set(overrides) - {"plans", "agendas", "tasks", "logs", "state"})
+            if unknown_overrides:
+                errors.append(f"unknown artifact path overrides: {', '.join(unknown_overrides)}")
+            for key, value in overrides.items():
+                if not _nonempty_string(value):
+                    errors.append(f"artifacts.path_overrides.{key} must be a non-empty string")
+        exports = artifacts.get("exports") or {}
+        if not isinstance(exports.get("docx", False), bool) or not isinstance(exports.get("xlsx", False), bool):
+            errors.append("artifacts.exports.docx and xlsx must be booleans")
+        for name, path_text in resolved_artifact_paths(artifacts).items():
+            path = Path(path_text)
+            if strict_paths and not path.exists():
+                errors.append(f"artifact path does not exist ({name}): {path}")
+            elif not path.exists():
+                warnings.append(f"artifact path does not exist yet ({name}): {path}")
+
+    permissions = profile.get("permissions") or {}
+    for key in (
+        "proposal_required",
+        "external_writes_enabled",
+        "local_artifact_writes_enabled",
+        "jira_ticket_approval_required",
+        "crm_writes_enabled",
+    ):
+        if not isinstance(permissions.get(key), bool):
+            errors.append(f"permissions.{key} must be a boolean")
+    if not permissions.get("proposal_required", False):
+        errors.append("permissions.proposal_required must be true")
+    if not permissions.get("jira_ticket_approval_required", False):
+        errors.append("permissions.jira_ticket_approval_required must be true")
+
+    enabled = profile.get("enabled_modules")
+    modules = profile.get("modules")
+    if not isinstance(enabled, list):
+        errors.append("enabled_modules must be an array")
+        enabled = []
+    if not isinstance(modules, dict):
+        errors.append("modules must be an object")
+        modules = {}
+    for module_id in enabled:
+        if module_id not in modules:
+            errors.append(f"enabled module missing config: {module_id}")
+        elif not (modules.get(module_id) or {}).get("enabled", False):
+            errors.append(f"enabled module is not marked enabled: {module_id}")
+
+    for module_id, supported in (("mail-sweep", {"gmail", "outlook"}), ("calendar-sweep", {"google", "outlook"})):
+        module = modules.get(module_id) or {}
+        for index, provider in enumerate(module.get("providers") or []):
+            label = f"modules.{module_id}.providers[{index}]"
+            if not isinstance(provider, dict):
+                errors.append(f"{label} must be an object")
+                continue
+            if provider.get("provider") not in supported:
+                errors.append(f"{label}.provider is not supported")
+            scope_ids = provider.get("scope_ids")
+            if not isinstance(scope_ids, list) or not scope_ids:
+                errors.append(f"{label}.scope_ids must be a non-empty array")
+            elif any(not _nonempty_string(scope_id) for scope_id in scope_ids):
+                errors.append(f"{label}.scope_ids must contain non-empty strings")
+            else:
+                unknown_scopes = sorted(set(scope_ids) - seen)
+                if unknown_scopes:
+                    errors.append(f"{label}.scope_ids contains unknown scopes: {', '.join(unknown_scopes)}")
+
+    takeaway = ((profile.get("features") or {}).get("daily_takeaways") or {})
+    if not isinstance(takeaway.get("enabled", False), bool):
+        errors.append("features.daily_takeaways.enabled must be a boolean")
+    max_items = takeaway.get("max_items", 3)
+    if not isinstance(max_items, int) or not 1 <= max_items <= 3:
+        errors.append("features.daily_takeaways.max_items must be an integer from 1 to 3")
+    recap = ((profile.get("features") or {}).get("recurring_meeting_recap") or {})
+    if not isinstance(recap.get("enabled", False), bool):
+        errors.append("features.recurring_meeting_recap.enabled must be a boolean")
+    if not isinstance((profile.get("features") or {}).get("docx_page_numbers", False), bool):
+        errors.append("features.docx_page_numbers must be a boolean")
+
+    return errors, warnings
+
+
+def _values(item: dict) -> list[str]:
+    values: list[str] = []
+    for key in ("title", "subject", "text", "body", "snippet", "project", "account"):
+        value = item.get(key)
+        if isinstance(value, str):
+            values.append(value)
+    participants = item.get("participants") or []
+    if isinstance(participants, list):
+        values.extend(str(value) for value in participants)
+    source = item.get("source") or {}
+    if isinstance(source, dict):
+        values.extend(str(value) for value in source.values() if value is not None)
+    return values
+
+
+def _matches_term(text: str, term: str) -> bool:
+    escaped = re.escape(term.strip())
+    if not escaped:
+        return False
+    return bool(re.search(rf"(?<![A-Za-z0-9]){escaped}(?![A-Za-z0-9])", text, flags=re.IGNORECASE))
+
+
+def _matches_any(values: Iterable[str], terms: Iterable[str]) -> bool:
+    material = "\n".join(values)
+    return any(_matches_term(material, term) for term in terms)
+
+
+def classify_item(item: dict, profile: dict) -> dict:
+    """Return a deterministic classification result for normalized evidence."""
+    values = _values(item)
+    for exclusion in (profile.get("routing") or {}).get("global_exclusions") or []:
+        terms = exclusion.get("match_terms") or [exclusion.get("name")]
+        if _matches_any(values, [term for term in terms if term]):
+            return {"status": "excluded", "reason": exclusion.get("name"), "item": item}
+
+    scopes = profile.get("scopes") or []
+
+    def assign(scope: dict, method: str) -> dict:
+        if _matches_any(values, scope.get("exclude_terms") or []):
+            return {"status": "excluded", "reason": f"{scope['id']}:scope_exclusion", "item": item}
+        return {"status": "classified", "scope_id": scope["id"], "method": method, "item": item}
+
+    explicit = item.get("scope_id")
+    explicit_scope = next((scope for scope in scopes if scope.get("id") == explicit), None)
+    if explicit_scope:
+        return assign(explicit_scope, "explicit")
+
+    source = item.get("source") or {}
+    provider_scope_ids: set[str] = set()
+    if isinstance(source, dict):
+        for module_id in ("mail-sweep", "calendar-sweep"):
+            for provider in (((profile.get("modules") or {}).get(module_id) or {}).get("providers") or []):
+                if provider.get("provider") != source.get("provider"):
+                    continue
+                configured_account = provider.get("account")
+                if configured_account and str(configured_account).casefold() != str(source.get("account") or "").casefold():
+                    continue
+                provider_scope_ids.update(provider.get("scope_ids") or [])
+    if len(provider_scope_ids) == 1:
+        selected = next((scope for scope in scopes if scope.get("id") in provider_scope_ids), None)
+        if selected:
+            return assign(selected, "provider_binding")
+
+    source_values = [str(value) for value in source.values()] if isinstance(source, dict) else []
+    binding_matches = [
+        scope for scope in scopes if _matches_any(source_values, scope.get("source_bindings") or [])
+    ]
+    if len(binding_matches) == 1:
+        return assign(binding_matches[0], "source_binding")
+
+    domain_matches: list[dict] = []
+    for scope in scopes:
+        if any(domain.lower() in "\n".join(values).lower() for domain in scope.get("domains") or []):
+            domain_matches.append(scope)
+    if len(domain_matches) == 1:
+        return assign(domain_matches[0], "domain")
+
+    term_matches: list[dict] = []
+    for scope in scopes:
+        terms = (scope.get("aliases") or []) + (scope.get("include_terms") or [])
+        if _matches_any(values, terms):
+            term_matches.append(scope)
+    if len(term_matches) == 1:
+        return assign(term_matches[0], "term")
+
+    if len(scopes) == 1:
+        return assign(scopes[0], "single_scope")
+
+    reason = "ambiguous" if binding_matches or domain_matches or term_matches else "no_match"
+    return {"status": "unclassified", "reason": reason, "item": item}
+
+
+def classify_items(items: Iterable[dict], profile: dict) -> dict:
+    result = {"classified": [], "excluded": [], "unclassified": []}
+    for item in items:
+        classified = classify_item(item, profile)
+        result[classified["status"]].append(classified)
+    result["requires_resolution"] = bool(result["unclassified"])
+    return result
+
+
+def migrate_v1_profile(legacy: dict, profile_id: str | None = None, workspace_root: str | None = None) -> dict:
+    owner = legacy.get("owner") or {}
+    name = owner.get("name") or "Migrated User"
+    selected_id = slugify(profile_id or legacy.get("profile_name") or f"{name}-close")
+    old_paths = legacy.get("paths") or {}
+    inferred_root = workspace_root or old_paths.get("daily_plan_dir")
+    if inferred_root:
+        inferred = Path(inferred_root).expanduser()
+        if inferred.name.lower() in {"daily plan", "plans"}:
+            inferred = inferred.parent
+    else:
+        inferred = Path.home() / "Documents" / "close-day"
+
+    overrides = {}
+    mapping = {
+        "daily_plan_dir": "plans",
+        "agenda_dir": "agendas",
+        "eod_log_dir": "logs",
+    }
+    for old_key, new_key in mapping.items():
+        if old_paths.get(old_key):
+            overrides[new_key] = old_paths[old_key]
+
+    exclusions = ((legacy.get("scope_exclusions") or {}).get("topics") or [])
+    enabled_legacy = legacy.get("enabled_modules") or []
+    enabled: list[str] = ["task-store", "daily-artifacts"]
+    if any(item in enabled_legacy for item in ("gmail-sweep", "sent-mail-outlook")):
+        enabled.append("mail-sweep")
+    if "calendar-outlook" in enabled_legacy:
+        enabled.append("calendar-sweep")
+    for item in ("granola-meetings", "slack-sweep", "teams-local-cache", "source-of-truth", "crm-google-sheet"):
+        if item in enabled_legacy:
+            enabled.append(item)
+
+    mail_providers = []
+    if "gmail-sweep" in enabled_legacy:
+        gmail = (legacy.get("modules") or {}).get("gmail-sweep") or {}
+        mail_providers.append({
+            "provider": "gmail",
+            "account": gmail.get("account") or owner.get("primary_email"),
+            "connector": "gmail",
+            "scope_ids": ["primary"],
+        })
+    if "sent-mail-outlook" in enabled_legacy:
+        mail_providers.append({"provider": "outlook", "adapter": "outlook-com", "scope_ids": ["primary"]})
+
+    calendar_providers = []
+    if "calendar-outlook" in enabled_legacy:
+        calendar_providers.append({"provider": "outlook", "adapter": "outlook-com", "scope_ids": ["primary"]})
+
+    write_mode = legacy.get("write_mode") or {}
+    document_enabled = bool(write_mode.get("document_generation_enabled"))
+    migrated = {
+        "schema_version": SCHEMA_VERSION,
+        "profile": {"id": selected_id, "name": legacy.get("profile_name") or f"{name} Close"},
+        "owner": {
+            "name": name,
+            "primary_email": owner.get("primary_email"),
+            "timezone": owner.get("timezone") or "UTC",
+        },
+        "schedule": {
+            "workdays": owner.get("workdays") or ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+            "close_out_time": owner.get("close_out_time") or "17:00",
+        },
+        "scopes": [{
+            "id": "primary",
+            "type": "organization",
+            "name": "Primary",
+            "aliases": [],
+            "domains": [],
+            "include_terms": [],
+            "exclude_terms": [],
+            "source_bindings": [],
+        }],
+        "routing": {"unclassified_policy": "pause_and_ask", "global_exclusions": exclusions},
+        "artifacts": {
+            "workspace_root": str(inferred),
+            "path_overrides": overrides,
+            "canonical": {"markdown": True, "json": True},
+            "exports": {"docx": document_enabled, "xlsx": bool(old_paths.get("gtd_workbook"))},
+        },
+        "features": {
+            "daily_takeaways": {"enabled": True, "max_items": 3},
+            "recurring_meeting_recap": {"enabled": True},
+            "docx_page_numbers": True,
+        },
+        "privacy": legacy.get("privacy") or {"allow_raw_external_content": False},
+        "permissions": {
+            "proposal_required": True,
+            "external_writes_enabled": bool(write_mode.get("external_writes_enabled")),
+            "local_artifact_writes_enabled": document_enabled,
+            "jira_ticket_approval_required": True,
+            "crm_writes_enabled": bool(write_mode.get("crm_writes_enabled")),
+        },
+        "enabled_modules": list(dict.fromkeys(enabled)),
+        "modules": {
+            "mail-sweep": {"enabled": "mail-sweep" in enabled, "providers": mail_providers},
+            "calendar-sweep": {"enabled": "calendar-sweep" in enabled, "providers": calendar_providers, "days_ahead": 1},
+            "task-store": {
+                "enabled": True,
+                "provider": "xlsx" if old_paths.get("gtd_workbook") else "portable",
+                "existing_path": old_paths.get("gtd_workbook"),
+                "allow_writes": bool(((legacy.get("modules") or {}).get("gtd-workbook") or {}).get("allow_writes")),
+            },
+            "daily-artifacts": {"enabled": True},
+            **{
+                module_id: {**(((legacy.get("modules") or {}).get(module_id)) or {}), "enabled": True}
+                for module_id in enabled
+                if module_id not in {"mail-sweep", "calendar-sweep", "task-store", "daily-artifacts"}
+            },
+        },
+    }
+    crm_module = migrated["modules"].get("crm-google-sheet")
+    if crm_module:
+        legacy_crm = legacy.get("crm") or {}
+        crm_module.setdefault(
+            "workbook_path",
+            legacy_crm.get("workbook_path") or str(inferred / "CRM" / "close-day-crm.xlsx"),
+        )
+        crm_module.setdefault(
+            "csv_seed_dir",
+            legacy_crm.get("csv_seed_dir") or str(inferred / "CRM" / "csv_seed"),
+        )
+        crm_module.setdefault(
+            "proposal_output_dir",
+            legacy_crm.get("proposal_output_dir") or str(inferred / "CRM" / "proposals"),
+        )
+        crm_module.setdefault("allow_live_sheet_writes", False)
+    source_module = migrated["modules"].get("source-of-truth")
+    if source_module:
+        source_module.setdefault("mode", "confluence")
+        source_module.setdefault(
+            "mapping_path", str(inferred / "Source of Truth" / "source-of-truth-map.csv")
+        )
+    return migrated

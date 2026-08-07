@@ -1,205 +1,107 @@
 ---
 name: close-day
-description: Run and onboard a modular end-of-day close-out workflow with selectable modules for GTD review, Outlook/Teams/Gmail/Slack/Granola/Atlassian sweeps, daily planning, source-of-truth updates, Jira ticket proposals, and a Google-Sheets-compatible CRM. Use when the user says close my day, end of day, EOD, wrap up the day, daily review, plan tomorrow, install or configure close-day modules, run the onboarding wizard, include CRM follow-ups, create a CRM seed from email, or run a read-first proposal gate before Jira/GTD/CRM/document/Confluence writes.
+description: Run, install, onboard, migrate, or reconfigure a proposal-first end-of-day close for personal, organization, or multi-organization profiles. Use for close my day, EOD, daily review, plan tomorrow, meeting agendas, task capture, Daily Takeaways, recurring-meeting recaps, CRM/source-of-truth follow-ups, or setup of local close-day folders, Google/Microsoft sources, modules, profiles, and write permissions.
 ---
 
 # close-day
 
-Use this skill as a read-first, propose-then-confirm shutdown workflow. Load enabled modules,
-gather read-only evidence, present one consolidated proposal, then execute writes only after the
-user approves the proposal and the local config permits that write target.
+Run a read-first, proposal-first close. Keep personal and organization data labeled by configured
+scope. Never perform an external write or create a local artifact before the applicable approval.
 
-## Start
+## Start and first run
 
-1. Resolve the skill directory. Prefer the current skill folder; if needed, use
-   `~/.codex/skills/close-day`.
-2. Load `config/daily-close.local.json` when it exists. Otherwise load
-   `config/daily-close.example.json` and treat all writes as disabled.
-   When `scope_exclusions.topics` is present, apply every listed topic across all enabled
-   modules. Match the topic name and `match_terms` case-insensitively as standalone terms or
-   clear project/account references. Broad source sweeps may retrieve excluded material, but
-   inspect it only far enough to distinguish it from in-scope work, then omit it from analysis,
-   proposals, plans, CRM, Jira, source-of-truth updates, and generated artifacts. A user may
-   override an exclusion for one run only by explicitly naming the excluded topic.
-3. Run:
-   `python scripts/validate_config.py --config <config-path>`
-4. Run:
-   `python scripts/list_modules.py --config <config-path>`
-5. Use only enabled modules unless the user explicitly asks to add or remove modules for this run.
+1. Resolve this skill directory; use the current folder or `~/.codex/skills/close-day`.
+2. Run `python scripts/onboard_close_day.py profiles list`.
+3. If no schema-v2 profile exists, start onboarding:
+   - For a new user, run `python scripts/onboard_close_day.py questions` and gather the answers
+     conversationally. Preview with `run --answers <answers.json> --dry-run`, show paths,
+     permissions, and gaps, then run with `--approved` only after confirmation.
+   - If `config/daily-close.local.json` exists, preview `migrate --from
+     config/daily-close.local.json --dry-run`. Preserve the legacy file and apply a migration only
+     after the user reviews its profile name, scopes, paths, exclusions, and permissions; require
+     `--approved` for the applied migration.
+4. Select an explicitly named profile or the registry default. If neither resolves, ask which
+   profile to use; do not combine profiles implicitly.
+5. Run `python scripts/onboard_close_day.py validate --profile <id>` and
+   `python scripts/list_modules.py --profile <id>`. Report missing paths/connectors as coverage
+   gaps and ask whether to continue with available sources. Never silently skip an enabled source.
 
-If validation reports missing connectors or paths, explain what coverage is lost and ask whether
-to proceed with the available sources. Do not silently skip an enabled module.
+Read [configuration.md](references/configuration.md) when onboarding, migrating, editing a profile,
+or resolving classification. Read [provider-adapters.md](references/provider-adapters.md) when
+using Google, Microsoft, Slack, Teams, Granola, Jira, or Confluence sources.
 
-## Onboarding
+## Gather and route
 
-When the user asks to install, configure, onboard, choose modules, or set up reference files, use
-the deterministic wizard before running a real close-out:
+1. Read only enabled module sources and normalize each candidate to the evidence contract in
+   `references/provider-adapters.md`.
+2. Apply global and scope exclusions before analysis. Inspect excluded material only far enough to
+   recognize it, then omit it from proposals, plans, CRM, Jira, source-of-truth updates, and
+   artifacts. Allow a one-run exception only when the user explicitly names the excluded topic.
+3. Route evidence using `python scripts/route_close_items.py --input <evidence.json> --profile
+   <id> --output <routed.json>`.
+4. Label every included item with its `scope_id`. Present a combined prioritized close using the
+   profile's scope display names.
+5. If routing returns any unclassified items, pause. Show the complete list and ask the user to
+   assign, exclude, or ignore every item. Do not build the consolidated proposal until the list is
+   resolved.
 
-```powershell
-python scripts/onboard_close_day.py questions --out outputs/onboarding/codex-onboarding-prompt.md
-python scripts/onboard_close_day.py run --answers config/onboarding.answers.example.json --dry-run
-python scripts/onboard_close_day.py validate --config outputs/onboarding/dry-run-daily-close.local.json
-```
+## Build the close
 
-Workflow:
+Review task state, communication, meetings, and source-of-truth evidence. Ask only about unresolved
+planned priorities that evidence cannot settle, manual captures, and next-workday priorities.
 
-1. Use `questions` to generate the LLM/Codex question catalog and answer schema.
-2. Ask the user the relevant questions, then save answers as JSON using
-   `config/onboarding.answers.example.json` as the shape.
-3. Run `run --answers <answers.json>` to create `daily-close.local.json`, local templates, and setup
-   reports. Use `--dry-run` first for a safe preview.
-4. Run `validate` and report setup status as `ready`, `usable_with_gaps`, or `blocked`.
+When Daily Takeaways are enabled, draft up to the configured maximum of concrete things done well
+and improvements. Do not pad either list. Keep them editable at approval.
 
-The wizard creates local templates/config only. Native Google Sheets, Google Docs, or Confluence
-creation remains a connector-backed follow-up and requires explicit approval.
+For a recurring meeting, build **Last meeting recap** within the same scope. Match provider event
+identity first, then normalized title, participants, and start time. Prefer the prior Granola note
+when enabled; fall back to the prior local agenda or state. Include summary, unresolved follow-ups
+with owners, decisions, and suggested talking points. State `No prior meeting found.` when needed.
 
-## Module Model
+## Approval gates
 
-Modules live in `modules/*.json`. Each manifest declares:
+Present one consolidated proposal containing:
 
-- `id`
-- `display_name`
-- `description`
-- `required_connectors`
-- `read_sources`
-- `write_targets`
-- `config_schema`
-- `enabled_by_default`
-- `proposal_output_type`
+- proposed Jira tickets first, when any exist
+- source coverage, gaps, and ignored or excluded material counts
+- completed, carried, captured, waiting-for, and task updates with scope labels
+- Daily Takeaways and next-workday priorities
+- meeting recaps and agendas
+- CRM and source-of-truth proposals
+- every local artifact or external write that would occur
 
-Use the module manifests as the source of truth for what a module may read and write. Write targets
-are not permission by themselves; they are only eligible after the single approval gate and only
-when `write_mode.enabled` is true in config.
+For each proposed Jira ticket, show exact summary, project, issue type, assignee, due date or `none`,
+parent/related issue, concise acceptance criteria, and duplicate-search result. Require explicit
+approval of that displayed Jira list; general approval does not authorize an undisclosed ticket.
 
-## Approval Gate
+Wait for explicit approval. Treat user edits as the executable scope and execute only approved
+lines. Run writes in this order: tasks, CRM, source-of-truth, logs/state, plans, and agendas.
 
-Gather everything first, then show one consolidated proposal. The proposal should include:
+## Artifacts
 
-- proposed new Jira tickets, listed first when any are candidates
-- source coverage and any skipped modules
-- items to mark complete or carry forward
-- new captures and waiting-for items
-- tomorrow or next-workday plan
-- CRM account/contact/interaction/follow-up proposals when CRM is enabled
-- Confluence/source-of-truth changes when enabled
-- document or workbook artifacts that would be generated
-
-Wait for explicit approval. After approval, execute only approved lines. If the user edits the
-proposal, treat the edited proposal as the executable scope.
-
-### Jira Ticket Creation Gate
-
-Always put proposed new Jira tickets first in the consolidated proposal. Before proposing them,
-search Jira read-only for duplicates or existing work that already covers the capture.
-
-For each proposed ticket, list:
-
-- exact summary
-- project and issue type
-- intended assignee
-- due date, or `none` when no source-backed date exists
-- parent or related issue, when applicable
-- concise scope and acceptance criteria
-- duplicate-search result
-
-Do not create any Jira ticket until the user explicitly approves the displayed ticket list.
-General approval of the rest of the close-day proposal does not approve Jira ticket creation when
-the exact tickets were not listed. If the user approves only a subset or edits a ticket, create
-only that final approved set. Never silently add another Jira ticket during execution.
-
-## Close-Out Flow
-
-1. Preflight connectors and local scripts for enabled modules.
-2. Read current GTD state if `gtd-workbook` is enabled.
-3. Sweep enabled communication and meeting modules read-only.
-4. Ask how unresolved planned priorities landed when evidence does not settle them.
-5. Ask for manual captures and next-day priorities.
-6. Build the consolidated proposal.
-7. After approval, execute allowed writes in this order:
-   GTD workbook updates, CRM updates or local proposal export, source-of-truth updates,
-   EOD log, Daily Plan document, standalone agendas.
-
-## Agendas: recurring-meeting recap
-
-When the `daily-plan-docx` module generates standalone or embedded agendas, open each
-**recurring** meeting's agenda (1:1s, standing syncs) with a **Last meeting recap** built
-from the previous instance of that same meeting:
-
-1. Identify the meeting as recurring by matching its title/counterpart to a prior agenda or
-   prior meeting note (normalized subject + start time).
-2. Chain to the prior instance's agenda file in `paths.agenda_dir` (most recent dated agenda
-   before this meeting whose title matches) and read it for last time's commitments,
-   decisions, and open loops.
-3. If the `granola-meetings` module is enabled, find that instance's Granola note
-   (`search_notes`/`recent_notes`, correlate by start-time overlap + fuzzy title) and prefer
-   it as the recap source; fall back to the prior agenda, then local notes.
-4. Compose the recap with: a short summary of what was discussed, open follow-ups / action
-   items (with owner where known), decisions made, and suggested talking points for this
-   meeting. Carry unresolved follow-ups forward as this meeting's talking points so nothing
-   is dropped. If no prior instance is found, state "No prior meeting found."
-
-## CRM Module
-
-When `crm-google-sheet` is enabled, read `references/crm-google-sheet.md` before proposing CRM
-changes. The CRM workflow is always proposal-first:
-
-1. Search Gmail with narrow, recent account/topic queries.
-2. Save or pass Gmail search/read results to `scripts/propose_crm_from_gmail.py`.
-3. Review the emitted proposal JSON.
-4. Present account candidates, contact candidates, interaction summaries, follow-ups the owner
-   owes, follow-ups others owe the owner, confidence, and source message/thread references.
-5. Do not write to Google Sheets in v1. Generate a local `.xlsx`/CSV seed first with
-   `scripts/generate_crm_workbook.py`. Native Google Sheets import or live updates require a
-   connected Drive/Sheets integration and explicit approval.
-
-Useful commands:
+Use Markdown and JSON as canonical artifacts. Preview with:
 
 ```powershell
-python scripts/generate_crm_workbook.py --output assets/crm/daily-close-crm-template.xlsx --csv-dir assets/crm/csv_seed
-python scripts/propose_crm_from_gmail.py --input tests/fixtures/gmail_crm_seed_sample.json --out outputs/crm-proposals/sample-proposal.json --dry-run
+python scripts/create_close_artifacts.py --input <approved-close.json> --profile <id> --dry-run
 ```
 
-## Local Profile
+After artifact approval and only when the profile permits local writes, rerun with `--approved`.
+The script refuses to overwrite an existing dated artifact. Generate optional DOCX plans/agendas
+or XLSX task exports only when enabled. Pass approved Takeaways to the DOCX renderer and use its
+configurable page-number footer.
 
-User-specific paths, accounts, and enabled-module choices belong in
-`config/daily-close.local.json`. This file is ignored from git. Keep write targets disabled in
-local smoke tests unless the user explicitly approves a live close-out run.
-
-Persistent topic exclusions also belong in the local profile:
-
-```json
-"scope_exclusions": {
-  "match_mode": "case_insensitive_term",
-  "topics": [
-    {
-      "name": "Example excluded project",
-      "match_terms": ["EXAMPLE"],
-      "reason": "User-requested exclusion"
-    }
-  ]
-}
-```
-
-The base local profile may include these modules:
-
-- `calendar-outlook`
-- `sent-mail-outlook`
-- `teams-local-cache`
-- `gtd-workbook`
-- `daily-plan-docx`
-- `source-of-truth`
-- `gmail-sweep`
-- `granola-meetings`
-- `slack-sweep`
-- `crm-google-sheet`
+When CRM is enabled, read [crm-google-sheet.md](references/crm-google-sheet.md). Keep mail-derived
+CRM changes proposal-only. Generate local workbook/CSV output unless a live Sheets connector and
+the approved profile both allow the exact write.
 
 ## Guardrails
 
-- Reads are allowed only from enabled module sources.
-- External writes are never allowed during sweep/gather phases.
-- Gmail, Slack, Granola, Teams, Outlook, Jira, and Confluence scans are read-only until approval.
-- Jira ticket creation always requires the Jira-specific proposal list and explicit user approval.
-- Gmail-driven CRM updates are proposals, not silent writes.
-- Google Sheets live writes are gated on an available connector or explicit integration path.
-- Keep source evidence compact: message IDs, thread IDs, subject, date, sender, snippet, and link.
-- Prefer deterministic scripts in `scripts/` for validation and repeatable artifacts.
+- Keep private profiles and connector state outside the Git repository.
+- Bind sources to allowed scopes before prioritizing; never leak evidence across profiles.
+- Keep external systems read-only during gathering.
+- Require the proposal gate for local and external writes and the stricter Jira gate for tickets.
+- Never store OAuth credentials; connector authentication is runtime-managed.
+- Keep source evidence compact: provider, stable id, account/workspace, timestamp, title, snippet,
+  participants, and link.
+- Use deterministic scripts for installation, onboarding, migration, routing, validation, and
+  artifact generation.

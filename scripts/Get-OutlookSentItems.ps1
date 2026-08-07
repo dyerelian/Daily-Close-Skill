@@ -7,8 +7,8 @@
   requests made of other people and propose matching "Waiting For" entries. Talks to a
   locally-installed Outlook through its COM automation interface using LATE-BOUND IDispatch.
   It first attaches to the already-running, authenticated Outlook session
-  (Marshal.GetActiveObject) and only falls back to launching a new instance. Do NOT switch this
-  to Python win32com / EnsureDispatch — the gencache/typelib path is broken on this machine.
+  (Marshal.GetActiveObject) and only falls back to launching a new instance. Late binding avoids
+  a generated Python typelib dependency and keeps the adapter self-contained.
 
   Sent-mail reads only. The script never sends, moves, or modifies any Outlook item.
 

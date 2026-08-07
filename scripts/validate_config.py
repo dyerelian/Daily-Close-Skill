@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from close_day_config import SCHEMA_VERSION, validate_profile
+
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_DIR = ROOT / "modules"
@@ -182,6 +184,18 @@ def validate_config(config_path: Path, strict_paths: bool) -> tuple[list[str], l
         config = load_json(config_path)
     except Exception as exc:
         return [f"{config_path}: invalid JSON: {exc}"], warnings
+
+    if config.get("schema_version") == SCHEMA_VERSION:
+        profile_errors, profile_warnings = validate_profile(config, strict_paths=strict_paths)
+        errors.extend(profile_errors)
+        warnings.extend(profile_warnings)
+        enabled = config.get("enabled_modules") or []
+        unknown = sorted(set(enabled) - set(manifests))
+        if unknown:
+            errors.append(f"enabled_modules contains unknown module ids: {', '.join(unknown)}")
+        for module_id in sorted(set(enabled) & set(manifests)):
+            validate_module_config(module_id, manifests[module_id], config, errors)
+        return errors, warnings
 
     for key in ("profile_name", "owner", "write_mode", "enabled_modules"):
         if key not in config:

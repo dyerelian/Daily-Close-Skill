@@ -1,0 +1,24 @@
+{
+  "items": [
+    {
+      "id": "mail-1",
+      "kind": "message",
+      "title": "Example Project decision",
+      "text": "Confirm the next step",
+      "source": {"provider": "gmail", "account": "user@example.org", "id": "mail-1"}
+    },
+    {
+      "id": "manual-1",
+      "kind": "manual",
+      "text": "Buy groceries",
+      "scope_id": "personal",
+      "source": {"provider": "manual", "id": "manual-1"}
+    },
+    {
+      "id": "unknown-1",
+      "kind": "manual",
+      "text": "Follow up on the unnamed item",
+      "source": {"provider": "manual", "id": "unknown-1"}
+    }
+  ]
+}

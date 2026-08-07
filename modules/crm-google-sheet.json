@@ -1,25 +1,23 @@
 {
   "id": "crm-google-sheet",
   "display_name": "CRM Google Sheet",
-  "description": "Generate a Google-Sheets-compatible CRM workbook and Gmail-driven update proposals; live sheet writes are gated.",
-  "required_connectors": [
-    "gmail"
-  ],
+  "description": "Generate a Google-Sheets-compatible CRM workbook and mail-driven update proposals; live sheet writes are gated.",
+  "required_connectors": [],
   "read_sources": [
     {
-      "type": "gmail",
+      "type": "mail_provider_adapter",
       "mode": "read-only"
     },
     {
       "type": "xlsx_or_csv",
-      "path_config_key": "crm.workbook_path",
+      "path_config_key": "modules.crm-google-sheet.workbook_path",
       "mode": "read-only unless approved"
     }
   ],
   "write_targets": [
     {
       "type": "local_xlsx_or_csv",
-      "path_config_key": "crm.workbook_path",
+      "path_config_key": "modules.crm-google-sheet.workbook_path",
       "requires_approval": true
     },
     {
@@ -45,6 +43,12 @@
       "proposal_output_dir": {
         "type": "string"
       },
+      "csv_seed_dir": {
+        "type": "string"
+      },
+      "seed_queries": {
+        "type": "array"
+      },
       "allow_live_sheet_writes": {
         "type": "boolean"
       }
@@ -58,25 +62,25 @@
     "setup_questions": [
       "Do you already have a CRM workbook or Google Sheet?",
       "If not, should setup create the close-day CRM workbook template?",
-      "Which customer, prospect, partner, and program keywords should seed Gmail searches?",
+      "Which customer, prospect, partner, and program keywords should seed mail searches?",
       "Should CRM updates stay proposal-only or allow sheet updates after approval?"
     ],
     "connector_probes": [
-      "Check Gmail connector when Gmail seeding is enabled.",
+      "Check the configured Gmail or Outlook adapter when mail seeding is enabled.",
       "Check workbook path exists when an existing CRM is selected."
     ],
     "required_artifacts": [
       "CRM workbook or Google Sheet with Accounts, Contacts, Interactions, FollowUps, and Lists."
     ],
     "optional_artifacts": [
-      "Gmail seed queries.",
+      "Provider-neutral mail seed queries.",
       "Dry-run CRM proposal output folder."
     ],
     "config_keys": [
-      "crm.workbook_path",
-      "crm.csv_seed_dir",
-      "crm.proposal_output_dir",
-      "crm.gmail_seed_queries",
+      "modules.crm-google-sheet.workbook_path",
+      "modules.crm-google-sheet.csv_seed_dir",
+      "modules.crm-google-sheet.proposal_output_dir",
+      "modules.crm-google-sheet.seed_queries",
       "modules.crm-google-sheet.enabled",
       "modules.crm-google-sheet.allow_live_sheet_writes"
     ]

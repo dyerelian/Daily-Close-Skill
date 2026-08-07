@@ -1,0 +1,11 @@
+{
+  "schema_version": 2,
+  "default_profile_id": "my-close",
+  "profiles": [
+    {
+      "id": "my-close",
+      "name": "My Close",
+      "path": "/private/config/root/profiles/my-close.json"
+    }
+  ]
+}
