@@ -60,6 +60,19 @@ def yes_no(prompt: str, default: bool = False) -> bool:
     return value in {"y", "yes", "true", "1"}
 
 
+def bounded_int(prompt: str, default: int, minimum: int, maximum: int) -> int:
+    while True:
+        value = ask(prompt, str(default))
+        try:
+            parsed = int(value)
+        except ValueError:
+            print(f"Enter a whole number from {minimum} to {maximum}.")
+            continue
+        if minimum <= parsed <= maximum:
+            return parsed
+        print(f"Enter a whole number from {minimum} to {maximum}.")
+
+
 def collect_interactive_answers() -> dict:
     answers = default_answers()
     profile = answers["profile"]
@@ -178,8 +191,59 @@ def collect_interactive_answers() -> dict:
     answers["permissions"]["local_artifact_writes_enabled"] = yes_no(
         "Allow local artifact creation after approval?", True
     )
-    answers["artifacts"]["exports"]["docx"] = yes_no("Export DOCX plans and agendas?", False)
+    answers["artifacts"]["exports"]["daily_plan_docx"] = yes_no(
+        "Export the Daily Plan as DOCX?", False
+    )
+    answers["artifacts"]["exports"]["agenda_docx"] = yes_no(
+        "Export standalone meeting agendas as DOCX?", False
+    )
     answers["artifacts"]["exports"]["xlsx"] = yes_no("Export XLSX task workbooks?", False)
+    takeaway = answers["features"].setdefault("daily_takeaways", {})
+    takeaway["enabled"] = yes_no("Include yesterday/today reflections in the Daily Plan?", True)
+    if takeaway["enabled"]:
+        takeaway["required_items"] = bounded_int(
+            "How many items are required in each reflection list?", 3, 0, 3
+        )
+        takeaway["max_items"] = max(
+            int(takeaway.get("max_items") or 3), takeaway["required_items"]
+        )
+        takeaway["incomplete_policy"] = (
+            "ask_until_complete"
+            if yes_no("Pause and ask until both reflection lists are complete?", True)
+            else "allow_partial"
+        )
+
+    optional = answers["systems"].setdefault("optional_modules", {})
+    if yes_no("Email the Daily Plan after the approved close is finalized?", False):
+        sender = ask("Authenticated Gmail sender", owner.get("primary_email") or "")
+        recipients = [
+            value.strip()
+            for value in ask("Delivery recipients (comma-separated)", owner.get("primary_email") or "").split(",")
+            if value.strip()
+        ]
+        mode = (
+            "send_after_approved_close"
+            if yes_no("Send immediately after finalization (instead of creating a draft)?", True)
+            else "draft_after_approved_close"
+        )
+        attach_plan = yes_no("Attach the Daily Plan DOCX?", True)
+        if attach_plan:
+            answers["artifacts"]["exports"]["daily_plan_docx"] = True
+        optional["email-delivery"] = {
+            "enabled": True,
+            "provider": "gmail",
+            "connector": "gmail",
+            "connector_configured": yes_no("Is the Gmail connector authenticated?", False),
+            "from": sender,
+            "recipients": recipients,
+            "mode": mode,
+            "subject_template": ask(
+                "Email subject template", "Daily Success Plan for {target_date}"
+            ),
+            "body_style": ask("Email body style (summary/full_plan)", "summary"),
+            "attachments": ["daily_plan_docx"] if attach_plan else [],
+        }
+        answers["permissions"]["email_delivery_enabled"] = True
     if yes_no("Override any derived Plans/Agendas/Tasks/Logs/State folders?", False):
         for key in ("plans", "agendas", "tasks", "logs", "state"):
             value = ask(f"{key.title()} folder override (leave blank for derived default)")
@@ -196,6 +260,7 @@ def build_profile(answers: dict) -> dict:
     systems = answers.get("systems") or {}
     features = answers.get("features") or {}
     permissions = answers.get("permissions") or {}
+    export_answers = artifacts.get("exports") or {}
 
     enabled = ["task-store", "daily-artifacts"]
     modules: dict[str, dict] = {
@@ -228,6 +293,7 @@ def build_profile(answers: dict) -> dict:
         "teams-local-cache",
         "source-of-truth",
         "crm-google-sheet",
+        "email-delivery",
     ):
         value = dict(optional.get(module_id) or {})
         if value.get("enabled"):
@@ -251,6 +317,14 @@ def build_profile(answers: dict) -> dict:
                 value.setdefault("mode", "local_files")
                 value.setdefault("allow_confluence_writes", False)
                 value.setdefault("mapping_path", str(workspace / "Source of Truth" / "source-of-truth-map.csv"))
+            if module_id == "email-delivery":
+                value.setdefault("provider", "gmail")
+                value.setdefault("connector", "gmail")
+                value.setdefault("connector_configured", False)
+                value.setdefault("mode", "send_after_approved_close")
+                value.setdefault("subject_template", "Daily Success Plan for {target_date}")
+                value.setdefault("body_style", "summary")
+                value.setdefault("attachments", ["daily_plan_docx"])
             enabled.append(module_id)
             modules[module_id] = value
 
@@ -281,14 +355,21 @@ def build_profile(answers: dict) -> dict:
             "path_overrides": artifacts.get("path_overrides") or {},
             "canonical": {"markdown": True, "json": True},
             "exports": {
-                "docx": bool((artifacts.get("exports") or {}).get("docx")),
-                "xlsx": bool((artifacts.get("exports") or {}).get("xlsx")),
+                "docx": bool(export_answers.get("docx")),
+                "xlsx": bool(export_answers.get("xlsx")),
+                **{
+                    key: bool(export_answers[key])
+                    for key in ("daily_plan_docx", "agenda_docx")
+                    if key in export_answers
+                },
             },
         },
         "features": {
             "daily_takeaways": {
                 "enabled": bool(takeaway.get("enabled", personal_or_mixed)),
                 "max_items": int(takeaway.get("max_items") or 3),
+                "required_items": int(takeaway.get("required_items") or 0),
+                "incomplete_policy": takeaway.get("incomplete_policy") or "allow_partial",
             },
             "recurring_meeting_recap": {
                 "enabled": bool((features.get("recurring_meeting_recap") or {}).get("enabled", True))
@@ -302,6 +383,7 @@ def build_profile(answers: dict) -> dict:
             "local_artifact_writes_enabled": bool(permissions.get("local_artifact_writes_enabled")),
             "jira_ticket_approval_required": True,
             "crm_writes_enabled": bool(permissions.get("crm_writes_enabled")),
+            "email_delivery_enabled": bool(permissions.get("email_delivery_enabled")),
         },
         "enabled_modules": enabled,
         "modules": modules,
@@ -324,6 +406,7 @@ def connector_gaps(profile: dict) -> list[str]:
         ("jira-sweep", "atlassian/Jira"),
         ("granola-meetings", "granola"),
         ("source-of-truth", "atlassian"),
+        ("email-delivery", "Gmail"),
     ):
         module = optional.get(module_id) or {}
         if module.get("enabled") and not module.get("connector_configured", False):
@@ -432,7 +515,9 @@ def question_catalog() -> dict:
             "Which optional meeting, chat, CRM, Jira, and source-of-truth modules are needed?",
             "Which exact local folders may be read, and which scope owns each folder?",
             "Which local and external writes are allowed after approval?",
-            "Should Daily Takeaways, recurring recaps, DOCX, and XLSX exports be enabled?",
+            "Should Daily Takeaways require an exact count, and should an incomplete close pause for answers?",
+            "Should Daily Plan DOCX, agenda DOCX, and XLSX exports be enabled separately?",
+            "Should a finalized plan be sent or drafted by email, from which Gmail account, to which recipients, with what subject, body style, and attachment?",
         ],
         "modules": {key: value.get("onboarding", {}) for key, value in manifests.items()},
     }

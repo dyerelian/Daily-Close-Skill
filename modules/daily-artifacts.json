@@ -1,7 +1,7 @@
 {
   "id": "daily-artifacts",
   "display_name": "Daily Artifacts",
-  "description": "Create canonical Markdown/JSON plans, agendas, tasks, logs, and state with optional DOCX/XLSX exports.",
+  "description": "Create canonical Markdown/JSON plans, agendas, tasks, logs, and state with separately configurable Daily Plan DOCX, agenda DOCX, and XLSX exports.",
   "required_connectors": ["local:file-system"],
   "read_sources": [
     {"type": "approved_close_payload", "mode": "generated from approved proposal"}
@@ -21,11 +21,11 @@
     "setup_questions": [
       "Choose one workspace root.",
       "Override any derived subfolders?",
-      "Enable optional DOCX or XLSX exports?"
+      "Enable Daily Plan DOCX, agenda DOCX, and XLSX exports separately?"
     ],
     "connector_probes": ["Check workspace paths without creating them until approval."],
     "required_artifacts": ["Plans, Agendas, Tasks, Logs, and State folders."],
-    "optional_artifacts": ["DOCX plans/agendas and XLSX task exports."],
+    "optional_artifacts": ["Daily Plan DOCX, agenda DOCX, and XLSX task exports."],
     "config_keys": ["artifacts.workspace_root", "artifacts.path_overrides", "artifacts.exports"]
   },
   "enabled_by_default": true,

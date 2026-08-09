@@ -70,8 +70,10 @@ using Google, Microsoft, Slack, Teams, Granola, Jira, or Confluence sources.
 Review task state, communication, meetings, and source-of-truth evidence. Ask only about unresolved
 planned priorities that evidence cannot settle, manual captures, and next-workday priorities.
 
-When Daily Takeaways are enabled, draft up to the configured maximum of concrete things done well
-and improvements. Do not pad either list. Keep them editable at approval.
+When Daily Takeaways are enabled, draft concrete things done well and improvements. If
+`required_items` is nonzero and `incomplete_policy` is `ask_until_complete`, obtain exactly that
+many evidence-backed items in both lists before finalization. Never invent or pad an item. Put the
+two reflection lists immediately after the Daily Plan title, before its summary.
 
 For a recurring meeting, build **Last meeting recap** within the same scope. Match provider event
 identity first, then normalized title, participants, and start time. Prefer the prior Granola note
@@ -89,6 +91,7 @@ Present one consolidated proposal containing:
 - meeting recaps and agendas
 - CRM and source-of-truth proposals
 - every local artifact or external write that would occur
+- the exact email sender, recipients, subject, body style, and attachments when email delivery is enabled
 
 For each proposed Jira ticket, show exact summary, project, issue type, assignee, due date or `none`,
 parent/related issue, concise acceptance criteria, and duplicate-search result. Require explicit
@@ -106,9 +109,17 @@ python scripts/create_close_artifacts.py --input <approved-close.json> --profile
 ```
 
 After artifact approval and only when the profile permits local writes, rerun with `--approved`.
-The script refuses to overwrite an existing dated artifact. Generate optional DOCX plans/agendas
-or XLSX task exports only when enabled. Pass approved Takeaways to the DOCX renderer and use its
-configurable page-number footer.
+The script refuses to overwrite an existing dated artifact. Generate Daily Plan DOCX, agenda DOCX,
+or XLSX task exports only when each export is enabled. Treat legacy `artifacts.exports.docx=true` as
+enabling both DOCX types unless a granular flag overrides it. Pass approved Takeaways to the Daily
+Plan renderer and use its configurable page-number footer.
+
+When `email-delivery` is enabled, prepare the deterministic envelope with
+`scripts/prepare_close_email.py` only after the approved artifacts exist and the Daily Plan DOCX has
+passed render review. Record `pending`, send or draft through the runtime Gmail connector according
+to the configured mode, then record `sent` or `failed` with `scripts/record_email_delivery.py`.
+Never store OAuth credentials or Gmail message/thread identifiers. Do not resend when the state has
+a matching `sent` delivery key; require an explicit retry after a failed delivery.
 
 When CRM is enabled, read [crm-google-sheet.md](references/crm-google-sheet.md). Keep mail-derived
 CRM changes proposal-only. Generate local workbook/CSV output unless a live Sheets connector and

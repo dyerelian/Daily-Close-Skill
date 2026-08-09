@@ -27,8 +27,8 @@ without an explicit user request.
 - `scopes`: classification and source-binding rules.
 - `routing`: `pause_and_ask` unclassified policy and global exclusions.
 - `artifacts`: workspace root, optional path overrides, canonical formats, and exports.
-- `features`: Daily Takeaways, recurring recaps, and DOCX page numbers.
-- `privacy` and `permissions`: data retention and write gates.
+- `features`: Daily Takeaways, exact reflection requirements, recurring recaps, and DOCX page numbers.
+- `privacy` and `permissions`: data retention and write gates, including the narrow email-delivery gate.
 - `enabled_modules` and `modules`: provider and capability configuration.
 
 For `jira-sweep`, configure one or more objects containing `name`, `jql`, `scope_id`, and `limit`.
@@ -58,7 +58,17 @@ before scope routing. Keep user-specific exclusions only in private profiles.
 
 Derive `Plans`, `Agendas`, `Tasks`, `Logs`, and `State` from `artifacts.workspace_root`. Allow any of
 those names to be replaced through `path_overrides`. Keep Markdown and JSON enabled as canonical
-formats. Treat DOCX and XLSX as optional exports.
+formats. Configure `daily_plan_docx`, `agenda_docx`, and `xlsx` independently. For compatibility,
+legacy `docx` applies to both DOCX exports unless a granular flag is present.
+
+Configure Daily Takeaways with `max_items`, optional `required_items`, and `incomplete_policy`.
+`ask_until_complete` blocks finalization until both reflection lists contain the exact required
+count; `allow_partial` retains the prior non-padding behavior.
+
+Email delivery is an optional Gmail runtime-connector module. Configure `from`, `recipients`,
+`mode`, `subject_template`, `body_style`, and attachments. Enable
+`permissions.email_delivery_enabled` separately from general external writes. Store delivery
+status and a deterministic key in close state, but never OAuth data or Gmail identifiers.
 
 ## Migration and readiness
 

@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from close_day_config import load_json, validate_profile  # noqa: E402
-from close_day_onboarding import build_profile, validate_setup  # noqa: E402
+from close_day_onboarding import build_profile, question_catalog, validate_setup  # noqa: E402
 from install_close_day import environment_report, install  # noqa: E402
 
 
@@ -91,6 +91,27 @@ class OnboardingTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 install(ROOT, target, "copy", force=True, dry_run=False)
             self.assertTrue(legacy.exists())
+
+    def test_email_delivery_answers_map_to_profile_and_questions(self) -> None:
+        answers = copy.deepcopy(load_json(ROOT / "config" / "onboarding.answers.example.json"))
+        answers["artifacts"]["exports"]["daily_plan_docx"] = True
+        answers["features"]["daily_takeaways"].update({
+            "required_items": 3,
+            "incomplete_policy": "ask_until_complete",
+        })
+        answers["permissions"]["email_delivery_enabled"] = True
+        answers["systems"]["optional_modules"]["email-delivery"].update({
+            "enabled": True,
+            "connector_configured": True,
+        })
+        profile = build_profile(answers)
+        errors, _ = validate_profile(profile)
+        self.assertEqual(errors, [])
+        self.assertIn("email-delivery", profile["enabled_modules"])
+        self.assertEqual(profile["features"]["daily_takeaways"]["required_items"], 3)
+        questions = " ".join(question_catalog()["core_questions"])
+        self.assertIn("recipient", questions)
+        self.assertIn("exact count", questions)
 
 
 if __name__ == "__main__":

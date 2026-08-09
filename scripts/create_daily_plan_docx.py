@@ -2,17 +2,13 @@
 """Render a combined "Daily Plan" Word document from structured JSON.
 
 The Daily Plan is the forward-looking output of the `close-day` skill. Its layout,
-top to bottom, is:
+top to bottom, is: title/date -> yesterday's wins -> today's improvements ->
+summary -> MIT ("The Frog") -> Daily Big 3 -> top action items -> other action
+items -> meeting schedule.
 
-    inspirational quote  ->  title/date  ->  summary  ->
-    optional Daily Takeaways  ->  MIT ("The Frog")  ->  Daily Big 3  ->
-    top action items  ->  other action items  ->
-    one full agenda section per meeting (each on its own page)
-
-Per-meeting agendas are rendered with the EXACT same logic as the `agenda-creator`
-skill: this script imports `create_agenda_docx.py` as a module and reuses its
-OpenXML helpers (run/paragraph builders, `document_body`, the package-part writers,
-and the 5-10-word send-ahead-bullet validation). Standard library only.
+This script loads the bundled agenda renderer only for its safe OpenXML text,
+paragraph, and package helpers. Standalone agenda exports remain separate files.
+Standard library only.
 
 Example:
     python create_daily_plan_docx.py --input plan.json --output "Daily Plan 2026-06-27.docx"
@@ -165,7 +161,7 @@ def bullet_block(parts: list[str], heading: str, values: object) -> None:
 
 
 def takeaways_block(parts: list[str], takeaways: object) -> None:
-    """Render an optional, concrete reflection without padding empty lists."""
+    """Render the two reflection lists first, using real Word numbering."""
     ac = agenda()
     if not isinstance(takeaways, dict):
         return
@@ -175,28 +171,44 @@ def takeaways_block(parts: list[str], takeaways: object) -> None:
     ]
     if not well and not improve:
         return
-    heading = "Daily Takeaways"
-    source_day = ac.text(takeaways.get("source_day")).strip()
-    if source_day:
-        heading += f" (from {source_day})"
-    parts.append(ac.simple_paragraph(heading, style="Heading1"))
+    required = int(takeaways.get("required_items") or max(len(well), len(improve), 0))
+    noun = "thing" if required == 1 else "things"
     if well:
-        parts.append(ac.paragraph_xml([ac.run_xml("Did well:", bold=True)]))
+        parts.append(
+            ac.simple_paragraph(
+                f"Yesterday — {required} {noun} I did well", style="Heading1"
+            )
+        )
         for item in well:
-            parts.append(ac.simple_paragraph(item, bullet=True))
+            parts.append(numbered_paragraph(item, 2))
     if improve:
-        parts.append(ac.paragraph_xml([ac.run_xml("To improve next time:", bold=True)]))
+        parts.append(
+            ac.simple_paragraph(
+                f"Today — {required} {noun} I can improve", style="Heading1"
+            )
+        )
         for item in improve:
-            parts.append(ac.simple_paragraph(item, bullet=True))
+            parts.append(numbered_paragraph(item, 3))
 
 
-def leveled_bullet(value: str, level: int = 0) -> str:
+def numbered_paragraph(value: str, num_id: int) -> str:
+    ac = agenda()
+    p_props = [
+        '<w:spacing w:after="80" w:line="300" w:lineRule="auto"/>',
+        f'<w:numPr><w:ilvl w:val="0"/><w:numId w:val="{num_id}"/></w:numPr>',
+    ]
+    return f"<w:p><w:pPr>{''.join(p_props)}</w:pPr>{ac.run_xml(ac.text(value))}</w:p>"
+
+
+def leveled_bullet(value: str, level: int = 0, keep_next: bool = False) -> str:
     ac = agenda()
     """A bullet paragraph at an explicit list level (0 = top, 1 = sub-bullet)."""
     p_props = [
-        '<w:spacing w:after="120"/>',
+        '<w:spacing w:after="80" w:line="300" w:lineRule="auto"/>',
         f'<w:numPr><w:ilvl w:val="{level}"/><w:numId w:val="1"/></w:numPr>',
     ]
+    if keep_next:
+        p_props.insert(0, "<w:keepNext/>")
     return f"<w:p><w:pPr>{''.join(p_props)}</w:pPr>{ac.run_xml(ac.text(value))}</w:p>"
 
 
@@ -209,7 +221,7 @@ def nested_bullet_block(parts: list[str], heading: str, values: object) -> None:
     render one indent level deeper. Used for Top Action Items so the "send out
     next-day agendas" task can list the agendas to prep as sub-bullets.
     """
-    block: list[str] = []
+    items: list[tuple[str, int]] = []
     for entry in values or []:
         if isinstance(entry, dict):
             label = ac.text(entry.get("text") or entry.get("action") or entry.get("label")).strip()
@@ -217,17 +229,20 @@ def nested_bullet_block(parts: list[str], heading: str, values: object) -> None:
             if not label and not subs:
                 continue
             if label:
-                block.append(leveled_bullet(label, 0))
+                items.append((label, 0))
             for sub in subs:
-                block.append(leveled_bullet(sub, 1))
+                items.append((sub, 1))
         else:
             label = ac.text(entry).strip()
             if label:
-                block.append(leveled_bullet(label, 0))
-    if not block:
+                items.append((label, 0))
+    if not items:
         return
     parts.append(ac.simple_paragraph(heading, style="Heading1"))
-    parts.extend(block)
+    parts.extend(
+        leveled_bullet(value, level, keep_next=index < len(items) - 1)
+        for index, (value, level) in enumerate(items)
+    )
 
 
 def meetings_block(parts: list[str], values: object) -> None:
@@ -261,12 +276,7 @@ def meetings_block(parts: list[str], values: object) -> None:
 
 
 def numbering_xml() -> str:
-    """Two-level bullet numbering (level 0 + sub-bullet level 1) on numId 1.
-
-    Overrides the agenda-creator's single-level numbering so Top Action Items can
-    nest agenda sub-bullets; level 0 stays identical, so reused agenda rendering
-    (which only uses ilvl 0 on numId 1) is unaffected.
-    """
+    """Compact-reference bullet and decimal numbering definitions."""
     return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:abstractNum w:abstractNumId="0">
@@ -276,18 +286,98 @@ def numbering_xml() -> str:
       <w:numFmt w:val="bullet"/>
       <w:lvlText w:val="&#8226;"/>
       <w:lvlJc w:val="left"/>
-      <w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr>
+      <w:pPr>
+        <w:tabs><w:tab w:val="num" w:pos="540"/></w:tabs>
+        <w:spacing w:after="80" w:line="300" w:lineRule="auto"/>
+        <w:ind w:left="540" w:hanging="271"/>
+      </w:pPr>
     </w:lvl>
     <w:lvl w:ilvl="1">
       <w:start w:val="1"/>
       <w:numFmt w:val="bullet"/>
       <w:lvlText w:val="&#9702;"/>
       <w:lvlJc w:val="left"/>
-      <w:pPr><w:ind w:left="1440" w:hanging="360"/></w:pPr>
+      <w:pPr>
+        <w:tabs><w:tab w:val="num" w:pos="1080"/></w:tabs>
+        <w:spacing w:after="80" w:line="300" w:lineRule="auto"/>
+        <w:ind w:left="1080" w:hanging="271"/>
+      </w:pPr>
+    </w:lvl>
+  </w:abstractNum>
+  <w:abstractNum w:abstractNumId="1">
+    <w:multiLevelType w:val="singleLevel"/>
+    <w:lvl w:ilvl="0">
+      <w:start w:val="1"/>
+      <w:numFmt w:val="decimal"/>
+      <w:lvlText w:val="%1."/>
+      <w:lvlJc w:val="left"/>
+      <w:pPr>
+        <w:tabs><w:tab w:val="num" w:pos="540"/></w:tabs>
+        <w:spacing w:after="80" w:line="300" w:lineRule="auto"/>
+        <w:ind w:left="540" w:hanging="271"/>
+      </w:pPr>
+    </w:lvl>
+  </w:abstractNum>
+  <w:abstractNum w:abstractNumId="2">
+    <w:multiLevelType w:val="singleLevel"/>
+    <w:lvl w:ilvl="0">
+      <w:start w:val="1"/>
+      <w:numFmt w:val="decimal"/>
+      <w:lvlText w:val="%1."/>
+      <w:lvlJc w:val="left"/>
+      <w:pPr>
+        <w:tabs><w:tab w:val="num" w:pos="540"/></w:tabs>
+        <w:spacing w:after="80" w:line="300" w:lineRule="auto"/>
+        <w:ind w:left="540" w:hanging="271"/>
+      </w:pPr>
     </w:lvl>
   </w:abstractNum>
   <w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>
+  <w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num>
+  <w:num w:numId="3"><w:abstractNumId w:val="2"/></w:num>
 </w:numbering>
+"""
+
+
+def styles_xml() -> str:
+    """Return the exact compact_reference_guide paragraph-style token map."""
+    return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docDefaults>
+    <w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:rPrDefault>
+    <w:pPrDefault><w:pPr><w:spacing w:after="120" w:line="300" w:lineRule="auto"/></w:pPr></w:pPrDefault>
+  </w:docDefaults>
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+    <w:name w:val="Normal"/>
+    <w:pPr><w:spacing w:after="120" w:line="300" w:lineRule="auto"/></w:pPr>
+    <w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Title">
+    <w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/>
+    <w:pPr><w:keepNext/><w:spacing w:before="0" w:after="160"/></w:pPr>
+    <w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:b/><w:color w:val="0B2545"/><w:sz w:val="40"/><w:szCs w:val="40"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Subtitle">
+    <w:name w:val="Subtitle"/><w:basedOn w:val="Normal"/>
+    <w:pPr><w:spacing w:after="120"/></w:pPr>
+    <w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:i/><w:color w:val="666666"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading1">
+    <w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/>
+    <w:pPr><w:keepNext/><w:spacing w:before="360" w:after="200"/></w:pPr>
+    <w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:b/><w:color w:val="2E74B5"/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading2">
+    <w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/>
+    <w:pPr><w:keepNext/><w:spacing w:before="280" w:after="140"/></w:pPr>
+    <w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:b/><w:color w:val="2E74B5"/><w:sz w:val="26"/><w:szCs w:val="26"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading3">
+    <w:name w:val="heading 3"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/>
+    <w:pPr><w:keepNext/><w:spacing w:before="200" w:after="100"/></w:pPr>
+    <w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:b/><w:color w:val="1F4D78"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr>
+  </w:style>
+</w:styles>
 """
 
 
@@ -295,19 +385,19 @@ FOOTER_REL_ID = "rId100"
 
 
 def footer_xml() -> str:
-    """Return a centered Page X of Y footer using Word fields."""
+    """Return a muted right-aligned Page X of Y footer using Word fields."""
     return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:p>
-    <w:pPr><w:jc w:val="center"/></w:pPr>
-    <w:r><w:t xml:space="preserve">Page </w:t></w:r>
-    <w:r><w:fldChar w:fldCharType="begin"/></w:r>
-    <w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>
-    <w:r><w:fldChar w:fldCharType="end"/></w:r>
-    <w:r><w:t xml:space="preserve"> of </w:t></w:r>
-    <w:r><w:fldChar w:fldCharType="begin"/></w:r>
-    <w:r><w:instrText xml:space="preserve"> NUMPAGES </w:instrText></w:r>
-    <w:r><w:fldChar w:fldCharType="end"/></w:r>
+    <w:pPr><w:jc w:val="right"/></w:pPr>
+    <w:r><w:rPr><w:color w:val="666666"/><w:sz w:val="18"/></w:rPr><w:t xml:space="preserve">Page </w:t></w:r>
+    <w:r><w:rPr><w:color w:val="666666"/><w:sz w:val="18"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r>
+    <w:r><w:rPr><w:color w:val="666666"/><w:sz w:val="18"/></w:rPr><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>
+    <w:r><w:rPr><w:color w:val="666666"/><w:sz w:val="18"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r>
+    <w:r><w:rPr><w:color w:val="666666"/><w:sz w:val="18"/></w:rPr><w:t xml:space="preserve"> of </w:t></w:r>
+    <w:r><w:rPr><w:color w:val="666666"/><w:sz w:val="18"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r>
+    <w:r><w:rPr><w:color w:val="666666"/><w:sz w:val="18"/></w:rPr><w:instrText xml:space="preserve"> NUMPAGES </w:instrText></w:r>
+    <w:r><w:rPr><w:color w:val="666666"/><w:sz w:val="18"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r>
   </w:p>
 </w:ftr>
 """
@@ -336,19 +426,19 @@ def daily_plan_body(data: dict) -> str:
     ac = agenda()
     parts: list[str] = []
 
+    date = ac.text(data.get("date")).strip()
+    parts.append(ac.simple_paragraph(f"Daily Plan — {date}" if date else "Daily Plan", style="Title"))
+
+    takeaways_block(parts, data.get("takeaways"))
+
     quote = quote_paragraph(data.get("quote"))
     if quote:
         parts.append(quote)
-
-    date = ac.text(data.get("date")).strip()
-    parts.append(ac.simple_paragraph(f"Daily Plan — {date}" if date else "Daily Plan", style="Title"))
 
     summary = ac.text(data.get("summary")).strip()
     if summary:
         parts.append(ac.simple_paragraph("Summary", style="Heading1"))
         parts.append(ac.simple_paragraph(summary))
-
-    takeaways_block(parts, data.get("takeaways"))
 
     mit = ac.text(data.get("mit")).strip()
     if mit:
@@ -356,19 +446,16 @@ def daily_plan_body(data: dict) -> str:
         parts.append(ac.simple_paragraph(mit))
 
     bullet_block(parts, "Daily Big 3", data.get("daily_big_3"))
+    takeaways_value = data.get("takeaways") or {}
+    if (
+        len(data.get("top_actions") or []) >= 4
+        and len(takeaways_value.get("well") or []) >= 3
+        and len(takeaways_value.get("improve") or []) >= 3
+    ):
+        parts.append(page_break())
     nested_bullet_block(parts, "Top Action Items", data.get("top_actions"))
     bullet_block(parts, "Other Action Items", data.get("other_actions"))
     meetings_block(parts, data.get("meetings"))
-
-    agendas = data.get("agendas") or []
-    if agendas:
-        parts.append(ac.simple_paragraph("Meeting Agendas", style="Heading1"))
-        for agenda_payload in agendas:
-            if not isinstance(agenda_payload, dict):
-                continue
-            parts.append(page_break())
-            # Reuse the exact agenda rendering (also validates send-ahead bullets).
-            parts.append(ac.document_body(agenda_payload))
 
     return "\n".join(parts)
 
@@ -387,7 +474,7 @@ def document_xml(data: dict) -> str:
     <w:sectPr>
       {footer_reference}
       <w:pgSz w:w="12240" w:h="15840"/>
-      <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/>
+      <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/>
     </w:sectPr>
   </w:body>
 </w:document>
@@ -409,7 +496,7 @@ def create_docx(data: dict, output_path: Path) -> None:
             document_rels_with_footer() if page_numbers else ac.document_rels_xml(),
         )
         docx.writestr("word/document.xml", document_xml(data))
-        docx.writestr("word/styles.xml", ac.styles_xml())
+        docx.writestr("word/styles.xml", styles_xml())
         docx.writestr("word/numbering.xml", numbering_xml())
         if page_numbers:
             docx.writestr("word/footer1.xml", footer_xml())

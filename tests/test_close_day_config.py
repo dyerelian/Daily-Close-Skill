@@ -161,6 +161,30 @@ class ProfileTests(unittest.TestCase):
             self.assertTrue(any("jira-sweep" in error and "scope_id" in error for error in errors))
             self.assertTrue(any("local-files" in error and "scope_id" in error for error in errors))
 
+    def test_email_delivery_requires_narrow_permission_and_plan_export(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            value = profile(Path(temporary))
+            value["enabled_modules"].append("email-delivery")
+            value["modules"]["email-delivery"] = {
+                "enabled": True,
+                "provider": "gmail",
+                "connector": "gmail",
+                "connector_configured": True,
+                "from": "sender@example.com",
+                "recipients": ["recipient@example.com"],
+                "mode": "send_after_approved_close",
+                "subject_template": "Daily Success Plan for {target_date}",
+                "body_style": "summary",
+                "attachments": ["daily_plan_docx"],
+            }
+            errors, _ = validate_profile(value)
+            self.assertTrue(any("daily_plan_docx" in error for error in errors))
+            self.assertTrue(any("email_delivery_enabled" in error for error in errors))
+            value["artifacts"]["exports"]["daily_plan_docx"] = True
+            value["permissions"]["email_delivery_enabled"] = True
+            errors, _ = validate_profile(value)
+            self.assertEqual(errors, [])
+
 
 if __name__ == "__main__":
     unittest.main()

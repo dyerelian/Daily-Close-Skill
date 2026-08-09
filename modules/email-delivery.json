@@ -1,0 +1,62 @@
+{
+  "id": "email-delivery",
+  "display_name": "Daily Plan Email Delivery",
+  "description": "Prepare a deterministic Gmail delivery envelope for the finalized Daily Plan and record delivery state without storing OAuth credentials or Gmail identifiers.",
+  "required_connectors": ["gmail"],
+  "read_sources": [
+    {"type": "approved_close_payload", "mode": "generated from approved proposal"},
+    {"type": "daily_plan_docx", "mode": "verified local attachment"}
+  ],
+  "write_targets": [
+    {"type": "gmail", "requires_approval": true},
+    {"type": "close_state", "path_config_key": "artifacts.workspace_root", "requires_approval": true}
+  ],
+  "config_schema": {
+    "type": "object",
+    "required": [
+      "enabled",
+      "provider",
+      "connector",
+      "connector_configured",
+      "from",
+      "recipients",
+      "mode",
+      "subject_template",
+      "body_style",
+      "attachments"
+    ],
+    "properties": {
+      "enabled": {"type": "boolean"},
+      "provider": {"const": "gmail"},
+      "connector": {"const": "gmail"},
+      "connector_configured": {"type": "boolean"},
+      "from": {"type": "string"},
+      "recipients": {"type": "array", "items": {"type": "string"}},
+      "mode": {"enum": ["send_after_approved_close", "draft_after_approved_close"]},
+      "subject_template": {"type": "string"},
+      "body_style": {"enum": ["summary", "full_plan"]},
+      "attachments": {"type": "array", "items": {"enum": ["daily_plan_docx"]}}
+    }
+  },
+  "onboarding": {
+    "question": "Should close-day email the finalized Daily Plan after approval?",
+    "default_for_profiles": [],
+    "setup_questions": [
+      "Which authenticated Gmail account sends the message?",
+      "Who receives it?",
+      "Send immediately or create a draft?",
+      "What subject template and body style should be used?",
+      "Should the Daily Plan DOCX be attached?"
+    ],
+    "connector_probes": ["Check that the configured Gmail connector is authenticated."],
+    "required_artifacts": ["Finalized Daily Plan and configured recipient list."],
+    "optional_artifacts": ["Daily Plan DOCX attachment."],
+    "config_keys": [
+      "permissions.email_delivery_enabled",
+      "modules.email-delivery",
+      "artifacts.exports.daily_plan_docx"
+    ]
+  },
+  "enabled_by_default": false,
+  "proposal_output_type": "email_delivery_preview"
+}

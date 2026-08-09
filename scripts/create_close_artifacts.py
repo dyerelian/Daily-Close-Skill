@@ -14,6 +14,7 @@ from typing import Any
 from close_day_config import (
     atomic_write_json,
     atomic_write_text,
+    export_enabled,
     load_json,
     resolve_profile,
     resolved_artifact_paths,
@@ -82,6 +83,42 @@ def takeaways(lines: list[str], payload: dict, scopes: dict[str, str]) -> None:
         lines.append("")
 
 
+def plan_reflections(lines: list[str], payload: dict, scopes: dict[str, str]) -> None:
+    value = payload.get("takeaways") or {}
+    well = value.get("well") or []
+    improve = value.get("improve") or []
+    required = int(value.get("required_items") or max(len(well), len(improve), 0))
+    noun = "thing" if required == 1 else "things"
+    if well:
+        lines.extend([f"## Yesterday — {required} {noun} I did well", ""])
+        lines.extend(f"{index}. {label(item, scopes)}" for index, item in enumerate(well, 1))
+        lines.append("")
+    if improve:
+        lines.extend([f"## Today — {required} {noun} I can improve", ""])
+        lines.extend(f"{index}. {label(item, scopes)}" for index, item in enumerate(improve, 1))
+        lines.append("")
+
+
+def validate_required_takeaways(payload: dict, profile: dict) -> None:
+    config = ((profile.get("features") or {}).get("daily_takeaways") or {})
+    if not config.get("enabled", False):
+        return
+    required = int(config.get("required_items") or 0)
+    if required <= 0 or config.get("incomplete_policy", "allow_partial") != "ask_until_complete":
+        return
+    takeaways_value = payload.get("takeaways") or {}
+    missing = []
+    for key, label_text in (("well", "things done well"), ("improve", "things to improve")):
+        values = [item for item in (takeaways_value.get(key) or []) if label(item, {}).strip()]
+        if len(values) != required:
+            missing.append(f"{label_text}: expected exactly {required}, found {len(values)}")
+    if missing:
+        raise ValueError(
+            "Daily Plan reflections are incomplete; ask the user before finalizing: "
+            + "; ".join(missing)
+        )
+
+
 def eod_markdown(payload: dict, scopes: dict[str, str]) -> str:
     close_date = payload.get("date") or date.today().isoformat()
     lines = [f"# End-of-Day Close — {close_date}", ""]
@@ -101,10 +138,10 @@ def eod_markdown(payload: dict, scopes: dict[str, str]) -> str:
 def plan_markdown(payload: dict, scopes: dict[str, str]) -> str:
     target = payload.get("target_date") or payload.get("date") or date.today().isoformat()
     lines = [f"# Daily Plan — {target}", ""]
+    plan_reflections(lines, payload, scopes)
     summary = str(payload.get("summary") or "").strip()
     if summary:
         lines.extend([summary, ""])
-    takeaways(lines, payload, scopes)
     sections = payload.get("sections") or {}
     for key, heading in (
         ("priorities", "Priorities"),
@@ -191,7 +228,7 @@ def export_paths(payload: dict, profile: dict) -> dict[str, list[tuple[Path, dic
         item["title"] = label({"text": item.get("title") or "Meeting Agenda", "scope_id": item.get("scope_id")}, scope_names)
         agenda_exports.append(item)
     result: dict[str, list[tuple[Path, dict, str]] | Path] = {"docx": []}
-    if exports.get("docx"):
+    if export_enabled(exports, "daily_plan_docx"):
         features = profile.get("features") or {}
         sections = payload.get("sections") or {}
         if payload.get("daily_plan"):
@@ -206,15 +243,22 @@ def export_paths(payload: dict, profile: dict) -> dict[str, list[tuple[Path, dic
                     "source_day": takeaway_value.get("source_day") or close_date,
                     "well": labeled(takeaway_value.get("well"))[:takeaway_limit],
                     "improve": labeled(takeaway_value.get("improve"))[:takeaway_limit],
+                    "required_items": int(
+                        ((features.get("daily_takeaways") or {}).get("required_items") or 0)
+                    ),
                 },
                 "daily_big_3": labeled(sections.get("priorities")),
                 "top_actions": labeled(sections.get("tasks")),
                 "other_actions": labeled(sections.get("waiting")),
                 "meetings": labeled_meetings(sections.get("meetings")),
-                "agendas": agenda_exports,
             }
         daily_plan["page_numbers"] = bool(features.get("docx_page_numbers", True))
+        daily_plan.setdefault("takeaways", {}).setdefault(
+            "required_items",
+            int(((features.get("daily_takeaways") or {}).get("required_items") or 0)),
+        )
         result["docx"].append((paths["plans"] / f"Daily Plan {target}.docx", daily_plan, "plan"))
+    if export_enabled(exports, "agenda_docx"):
         for agenda in agenda_exports:
             if not isinstance(agenda, dict):
                 continue
@@ -282,6 +326,7 @@ def main() -> int:
     if errors:
         raise ValueError("invalid profile: " + "; ".join(errors))
     payload = load_json(Path(args.input).expanduser())
+    validate_required_takeaways(payload, profile)
     outputs = build_outputs(payload, profile)
     exports = export_paths(payload, profile)
     export_files = [path for path, _, _ in exports.get("docx", [])]

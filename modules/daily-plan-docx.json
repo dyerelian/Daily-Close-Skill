@@ -14,7 +14,7 @@
   "write_targets": [
     {
       "type": "docx",
-      "path_config_key": "paths.daily_plan_dir",
+      "path_config_key": "artifacts.workspace_root",
       "requires_approval": true
     }
   ],
@@ -44,8 +44,8 @@
       "solo_operator"
     ],
     "setup_questions": [
-      "Should the plan be .docx, markdown-only, or skipped?",
-      "Where should Daily Plan documents and EOD logs be stored?"
+      "Should the Daily Plan be exported as DOCX independently of agenda DOCX exports?",
+      "Which workspace root or Plans override should hold Daily Plan documents?"
     ],
     "connector_probes": [
       "Check the configured Daily Plan and EOD log directories.",
@@ -60,12 +60,11 @@
       "Agenda renderer script."
     ],
     "config_keys": [
-      "paths.daily_plan_dir",
-      "paths.eod_log_dir",
-      "paths.agenda_dir",
-      "paths.agenda_creator_script",
-      "modules.daily-plan-docx.enabled",
-      "modules.daily-plan-docx.allow_generation"
+      "artifacts.workspace_root",
+      "artifacts.path_overrides.plans",
+      "artifacts.exports.daily_plan_docx",
+      "features.daily_takeaways",
+      "features.docx_page_numbers"
     ]
   },
   "enabled_by_default": false,

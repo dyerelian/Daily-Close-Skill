@@ -9,7 +9,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from create_close_artifacts import build_outputs, create_task_xlsx, export_paths  # noqa: E402
+from create_close_artifacts import (  # noqa: E402
+    build_outputs,
+    create_task_xlsx,
+    export_paths,
+    validate_required_takeaways,
+)
 from propose_crm_from_mail import normalized_email_payload  # noqa: E402
 
 
@@ -94,6 +99,48 @@ class ArtifactTests(unittest.TestCase):
             xlsx = jobs["xlsx"]
             create_task_xlsx(payload, profile, xlsx)
             self.assertTrue(xlsx.exists())
+
+    def test_granular_docx_exports_override_legacy_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            profile = {
+                "artifacts": {
+                    "workspace_root": temporary,
+                    "path_overrides": {},
+                    "exports": {
+                        "docx": True,
+                        "daily_plan_docx": True,
+                        "agenda_docx": False,
+                        "xlsx": False,
+                    },
+                },
+                "features": {"daily_takeaways": {"max_items": 3}},
+                "scopes": [{"id": "acme", "name": "Acme"}],
+            }
+            payload = {
+                "date": "2026-08-09",
+                "target_date": "2026-08-10",
+                "agendas": [{"title": "Weekly sync", "scope_id": "acme"}],
+            }
+            jobs = export_paths(payload, profile)
+            self.assertEqual(len(jobs["docx"]), 1)
+            self.assertEqual(jobs["docx"][0][2], "plan")
+
+    def test_exact_reflections_block_incomplete_close(self) -> None:
+        profile = {
+            "features": {
+                "daily_takeaways": {
+                    "enabled": True,
+                    "max_items": 3,
+                    "required_items": 3,
+                    "incomplete_policy": "ask_until_complete",
+                }
+            }
+        }
+        payload = {"takeaways": {"well": ["one", "two"], "improve": ["one", "two", "three"]}}
+        with self.assertRaisesRegex(ValueError, "ask the user"):
+            validate_required_takeaways(payload, profile)
+        payload["takeaways"]["well"].append("three")
+        validate_required_takeaways(payload, profile)
 
 
 if __name__ == "__main__":

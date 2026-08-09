@@ -111,6 +111,15 @@ def resolved_artifact_paths(artifacts: dict) -> dict[str, str]:
     return resolved
 
 
+def export_enabled(exports: dict, export_name: str) -> bool:
+    """Resolve granular DOCX exports while preserving legacy ``docx`` profiles."""
+    if export_name in exports:
+        return bool(exports[export_name])
+    if export_name in {"daily_plan_docx", "agenda_docx"}:
+        return bool(exports.get("docx", False))
+    return bool(exports.get(export_name, False))
+
+
 def default_registry(default_profile_id: str | None = None) -> dict:
     return {
         "schema_version": SCHEMA_VERSION,
@@ -271,8 +280,13 @@ def validate_profile(profile: dict, strict_paths: bool = False) -> tuple[list[st
                 if not _nonempty_string(value):
                     errors.append(f"artifacts.path_overrides.{key} must be a non-empty string")
         exports = artifacts.get("exports") or {}
-        if not isinstance(exports.get("docx", False), bool) or not isinstance(exports.get("xlsx", False), bool):
-            errors.append("artifacts.exports.docx and xlsx must be booleans")
+        if not isinstance(exports, dict):
+            errors.append("artifacts.exports must be an object")
+            exports = {}
+        else:
+            for key in ("docx", "daily_plan_docx", "agenda_docx", "xlsx"):
+                if key in exports and not isinstance(exports[key], bool):
+                    errors.append(f"artifacts.exports.{key} must be a boolean")
         for name, path_text in resolved_artifact_paths(artifacts).items():
             path = Path(path_text)
             if strict_paths and not path.exists():
@@ -294,6 +308,10 @@ def validate_profile(profile: dict, strict_paths: bool = False) -> tuple[list[st
         errors.append("permissions.proposal_required must be true")
     if not permissions.get("jira_ticket_approval_required", False):
         errors.append("permissions.jira_ticket_approval_required must be true")
+    if "email_delivery_enabled" in permissions and not isinstance(
+        permissions.get("email_delivery_enabled"), bool
+    ):
+        errors.append("permissions.email_delivery_enabled must be a boolean")
 
     enabled = profile.get("enabled_modules")
     modules = profile.get("modules")
@@ -396,12 +414,73 @@ def validate_profile(profile: dict, strict_paths: bool = False) -> tuple[list[st
                 ):
                     errors.append(f"{label}.include_extensions must be an array of non-empty strings")
 
+    email_delivery = modules.get("email-delivery") or {}
+    if email_delivery.get("enabled"):
+        if email_delivery.get("provider") != "gmail":
+            errors.append("modules.email-delivery.provider must be gmail")
+        if email_delivery.get("connector") != "gmail":
+            errors.append("modules.email-delivery.connector must be gmail")
+        if not isinstance(email_delivery.get("connector_configured"), bool):
+            errors.append("modules.email-delivery.connector_configured must be a boolean")
+        sender = email_delivery.get("from")
+        if not _nonempty_string(sender) or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", sender):
+            errors.append("modules.email-delivery.from must be an email address")
+        recipients = email_delivery.get("recipients")
+        if not isinstance(recipients, list) or not recipients:
+            errors.append("modules.email-delivery.recipients must be a non-empty array")
+        elif any(
+            not _nonempty_string(recipient)
+            or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", recipient)
+            for recipient in recipients
+        ):
+            errors.append("modules.email-delivery.recipients must contain email addresses")
+        if email_delivery.get("mode") not in {
+            "send_after_approved_close",
+            "draft_after_approved_close",
+        }:
+            errors.append(
+                "modules.email-delivery.mode must be send_after_approved_close or "
+                "draft_after_approved_close"
+            )
+        if not _nonempty_string(email_delivery.get("subject_template")):
+            errors.append("modules.email-delivery.subject_template must be a non-empty string")
+        if email_delivery.get("body_style") not in {"summary", "full_plan"}:
+            errors.append("modules.email-delivery.body_style must be summary or full_plan")
+        attachments = email_delivery.get("attachments")
+        if not isinstance(attachments, list) or any(
+            attachment not in {"daily_plan_docx"} for attachment in attachments
+        ):
+            errors.append("modules.email-delivery.attachments may contain only daily_plan_docx")
+        artifact_exports = (
+            (artifacts.get("exports") or {}) if isinstance(artifacts, dict) else {}
+        )
+        if "daily_plan_docx" in (attachments or []) and not export_enabled(
+            artifact_exports, "daily_plan_docx"
+        ):
+            errors.append("email delivery of daily_plan_docx requires that export to be enabled")
+        if not permissions.get("email_delivery_enabled", False):
+            errors.append(
+                "permissions.email_delivery_enabled must be true when email-delivery is enabled"
+            )
+
     takeaway = ((profile.get("features") or {}).get("daily_takeaways") or {})
     if not isinstance(takeaway.get("enabled", False), bool):
         errors.append("features.daily_takeaways.enabled must be a boolean")
     max_items = takeaway.get("max_items", 3)
     if not isinstance(max_items, int) or not 1 <= max_items <= 3:
         errors.append("features.daily_takeaways.max_items must be an integer from 1 to 3")
+    required_items = takeaway.get("required_items", 0)
+    if not isinstance(required_items, int) or not 0 <= required_items <= 3:
+        errors.append("features.daily_takeaways.required_items must be an integer from 0 to 3")
+    elif isinstance(max_items, int) and required_items > max_items:
+        errors.append("features.daily_takeaways.required_items cannot exceed max_items")
+    if takeaway.get("incomplete_policy", "allow_partial") not in {
+        "allow_partial",
+        "ask_until_complete",
+    }:
+        errors.append(
+            "features.daily_takeaways.incomplete_policy must be allow_partial or ask_until_complete"
+        )
     recap = ((profile.get("features") or {}).get("recurring_meeting_recap") or {})
     if not isinstance(recap.get("enabled", False), bool):
         errors.append("features.recurring_meeting_recap.enabled must be a boolean")
@@ -594,7 +673,12 @@ def migrate_v1_profile(legacy: dict, profile_id: str | None = None, workspace_ro
             "exports": {"docx": document_enabled, "xlsx": bool(old_paths.get("gtd_workbook"))},
         },
         "features": {
-            "daily_takeaways": {"enabled": True, "max_items": 3},
+            "daily_takeaways": {
+                "enabled": True,
+                "max_items": 3,
+                "required_items": 0,
+                "incomplete_policy": "allow_partial",
+            },
             "recurring_meeting_recap": {"enabled": True},
             "docx_page_numbers": True,
         },
@@ -605,6 +689,7 @@ def migrate_v1_profile(legacy: dict, profile_id: str | None = None, workspace_ro
             "local_artifact_writes_enabled": document_enabled,
             "jira_ticket_approval_required": True,
             "crm_writes_enabled": bool(write_mode.get("crm_writes_enabled")),
+            "email_delivery_enabled": False,
         },
         "enabled_modules": list(dict.fromkeys(enabled)),
         "modules": {

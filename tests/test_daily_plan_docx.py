@@ -59,7 +59,7 @@ def load_module():
 
 
 class DailyPlanDocxTests(unittest.TestCase):
-    def test_bundled_agenda_renderer_is_self_contained(self) -> None:
+    def test_bundled_renderer_creates_plan_without_embedded_agendas(self) -> None:
         spec = importlib.util.spec_from_file_location("daily_plan_bundled", SCRIPT)
         module = importlib.util.module_from_spec(spec)
         assert spec.loader
@@ -77,7 +77,9 @@ class DailyPlanDocxTests(unittest.TestCase):
             )
             with zipfile.ZipFile(output) as archive:
                 self.assertIn("word/footer1.xml", archive.namelist())
-                self.assertIn("Weekly sync", archive.read("word/document.xml").decode("utf-8"))
+                document = archive.read("word/document.xml").decode("utf-8")
+                self.assertIn("Yesterday — 1 thing I did well", document)
+                self.assertNotIn("Weekly sync", document)
 
     def test_takeaways_and_page_footer_are_packaged(self) -> None:
         module = load_module()
@@ -94,10 +96,17 @@ class DailyPlanDocxTests(unittest.TestCase):
             with zipfile.ZipFile(output) as archive:
                 self.assertIn("word/footer1.xml", archive.namelist())
                 document = archive.read("word/document.xml").decode("utf-8")
-                self.assertIn("Daily Takeaways", document)
+                self.assertIn("Yesterday — 1 thing I did well", document)
+                self.assertIn("Today — 1 thing I can improve", document)
+                self.assertLess(document.index("Yesterday"), document.index("Summary"))
                 self.assertIn("footerReference", document)
                 footer = archive.read("word/footer1.xml").decode("utf-8")
                 self.assertIn("NUMPAGES", footer)
+                numbering = archive.read("word/numbering.xml").decode("utf-8")
+                self.assertIn('w:numFmt w:val="decimal"', numbering)
+                styles = archive.read("word/styles.xml").decode("utf-8")
+                self.assertIn('w:line="300"', styles)
+                self.assertIn('w:color w:val="2E74B5"', styles)
 
     def test_page_numbers_can_be_disabled(self) -> None:
         module = load_module()

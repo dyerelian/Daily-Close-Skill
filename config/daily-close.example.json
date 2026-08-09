@@ -43,10 +43,20 @@
     "workspace_root": "~/Documents/close-day",
     "path_overrides": {},
     "canonical": {"markdown": true, "json": true},
-    "exports": {"docx": false, "xlsx": false}
+    "exports": {
+      "docx": false,
+      "daily_plan_docx": false,
+      "agenda_docx": false,
+      "xlsx": false
+    }
   },
   "features": {
-    "daily_takeaways": {"enabled": true, "max_items": 3},
+    "daily_takeaways": {
+      "enabled": true,
+      "max_items": 3,
+      "required_items": 0,
+      "incomplete_policy": "allow_partial"
+    },
     "recurring_meeting_recap": {"enabled": true},
     "docx_page_numbers": true
   },
@@ -59,7 +69,8 @@
     "external_writes_enabled": false,
     "local_artifact_writes_enabled": false,
     "jira_ticket_approval_required": true,
-    "crm_writes_enabled": false
+    "crm_writes_enabled": false,
+    "email_delivery_enabled": false
   },
   "enabled_modules": ["mail-sweep", "calendar-sweep", "task-store", "daily-artifacts"],
   "modules": {

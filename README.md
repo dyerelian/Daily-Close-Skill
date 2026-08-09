@@ -11,8 +11,9 @@ unclassified items, and asks for approval before local or external writes.
 - Google and Microsoft mail/calendar provider adapters, plus optional Slack, Teams, Granola,
   scoped Jira, scoped local-file, Atlassian, CRM, and source-of-truth modules.
 - A user-selected workspace root with derived `Plans`, `Agendas`, `Tasks`, `Logs`, and `State`.
-- Canonical Markdown/JSON artifacts with optional DOCX/XLSX exports.
-- Optional Daily Takeaways, recurring-meeting recaps, and DOCX page numbers.
+- Canonical Markdown/JSON artifacts with independent Daily Plan DOCX, agenda DOCX, and XLSX exports.
+- Optional exact-count Daily Plan reflections, recurring-meeting recaps, DOCX page numbers, and
+  proposal-gated Gmail delivery of the finalized plan.
 - Cross-platform installation, onboarding, migration, routing, and validation scripts.
 
 ## Quick start: tell your LLM
@@ -29,6 +30,9 @@ and start setup; the user should not need to clone the repository or run Python 
 > installation, read the installed `SKILL.md` and begin first-time onboarding conversationally.
 > Show me the proposed profile, scopes, folders, permissions, exclusions, enabled modules, and
 > connector gaps before creating configuration or folders, and wait for my explicit approval.
+> During the wizard, ask separately about the workspace root, Daily Plan DOCX, agenda DOCX, the
+> required count and incomplete-answer policy for yesterday/today reflections, and finalized-plan
+> email delivery (sender, recipients, send versus draft, subject, body style, and attachment).
 
 For Codex agents, the verified native installer arguments are:
 
@@ -112,6 +116,11 @@ python scripts/create_close_artifacts.py --input approved-close.json --profile m
 
 Existing dated artifacts are not overwritten. OAuth credentials are never stored in this project,
 and external writes remain separately proposal-gated.
+
+When configured, the finalized Daily Plan email is prepared only after DOCX render verification.
+The agent shows its exact delivery details in the close proposal, sends or drafts it through the
+runtime Gmail connector after approval, and records only non-provider delivery state in the close
+JSON so a matching successful delivery is not repeated.
 
 ## Development checks
 

@@ -26,10 +26,20 @@
   "artifacts": {
     "workspace_root": "~/Documents/close-day",
     "path_overrides": {},
-    "exports": {"docx": false, "xlsx": false}
+    "exports": {
+      "docx": false,
+      "daily_plan_docx": false,
+      "agenda_docx": false,
+      "xlsx": false
+    }
   },
   "features": {
-    "daily_takeaways": {"enabled": true, "max_items": 3},
+    "daily_takeaways": {
+      "enabled": true,
+      "max_items": 3,
+      "required_items": 0,
+      "incomplete_policy": "allow_partial"
+    },
     "recurring_meeting_recap": {"enabled": true},
     "docx_page_numbers": true
   },
@@ -40,7 +50,8 @@
   "permissions": {
     "external_writes_enabled": false,
     "local_artifact_writes_enabled": false,
-    "crm_writes_enabled": false
+    "crm_writes_enabled": false,
+    "email_delivery_enabled": false
   },
   "systems": {
     "mail": {
@@ -86,7 +97,19 @@
       },
       "teams-local-cache": {"enabled": false},
       "source-of-truth": {"enabled": false, "connector_configured": false},
-      "crm-google-sheet": {"enabled": false, "connector_configured": false}
+      "crm-google-sheet": {"enabled": false, "connector_configured": false},
+      "email-delivery": {
+        "enabled": false,
+        "provider": "gmail",
+        "connector": "gmail",
+        "connector_configured": false,
+        "from": "user@example.com",
+        "recipients": ["user@example.com"],
+        "mode": "send_after_approved_close",
+        "subject_template": "Daily Success Plan for {target_date}",
+        "body_style": "summary",
+        "attachments": ["daily_plan_docx"]
+      }
     }
   }
 }
