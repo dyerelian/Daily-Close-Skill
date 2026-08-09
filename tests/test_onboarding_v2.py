@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import sys
 import tempfile
 import unittest
@@ -32,6 +33,46 @@ class OnboardingTests(unittest.TestCase):
             self.assertEqual(result["status"], "dry_run")
             self.assertFalse(target.exists())
             self.assertTrue(environment_report(target)["python_supported"])
+
+    def test_scoped_jira_and_local_files_are_onboarded(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            answers = copy.deepcopy(load_json(ROOT / "config" / "onboarding.answers.example.json"))
+            workspace = Path(temporary) / "workspace"
+            for folder in ("Plans", "Agendas", "Tasks", "Logs", "State"):
+                (workspace / folder).mkdir(parents=True, exist_ok=True)
+            answers["artifacts"]["workspace_root"] = str(workspace)
+            scope_id = answers["scopes"][0]["id"]
+            optional = answers["systems"]["optional_modules"]
+            optional["jira-sweep"] = {
+                "enabled": True,
+                "connector": "atlassian",
+                "connector_configured": True,
+                "queries": [{
+                    "name": "Assigned open work",
+                    "jql": "assignee = currentUser() AND statusCategory != Done",
+                    "scope_id": scope_id,
+                    "limit": 50,
+                }],
+            }
+            optional["local-files"] = {
+                "enabled": True,
+                "max_files": 200,
+                "roots": [{
+                    "path": temporary,
+                    "scope_id": scope_id,
+                    "recursive": True,
+                    "lookback_days": 7,
+                    "include_extensions": [],
+                }],
+            }
+            profile = build_profile(answers)
+            errors, _ = validate_profile(profile, strict_paths=True)
+            self.assertEqual(errors, [])
+            self.assertIn("jira-sweep", profile["enabled_modules"])
+            self.assertIn("local-files", profile["enabled_modules"])
+            readiness = validate_setup(profile, strict_paths=True)
+            self.assertFalse(any("jira-sweep" in gap for gap in readiness["gaps"]))
+            self.assertFalse(any("local-files" in gap for gap in readiness["gaps"]))
 
     def test_copy_install_excludes_private_legacy_config(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

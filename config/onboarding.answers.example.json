@@ -75,6 +75,15 @@
     "optional_modules": {
       "granola-meetings": {"enabled": false, "connector_configured": false},
       "slack-sweep": {"enabled": false, "connector_configured": false, "channels": []},
+      "jira-sweep": {"enabled": false, "connector_configured": false, "queries": []},
+      "local-files": {
+        "enabled": false,
+        "roots": [],
+        "max_files": 200,
+        "max_scanned_files": 5000,
+        "max_scanned_directories": 1000,
+        "max_scan_seconds": 15
+      },
       "teams-local-cache": {"enabled": false},
       "source-of-truth": {"enabled": false, "connector_configured": false},
       "crm-google-sheet": {"enabled": false, "connector_configured": false}

@@ -137,6 +137,30 @@ class ProfileTests(unittest.TestCase):
         errors, _ = validate_profile(migrated)
         self.assertEqual(errors, [])
 
+    def test_scoped_modules_reject_unknown_scope_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            value = profile(Path(temporary))
+            value["enabled_modules"].extend(["jira-sweep", "local-files"])
+            value["modules"]["jira-sweep"] = {
+                "enabled": True,
+                "connector_configured": True,
+                "queries": [{"name": "Work", "jql": "project = TEST", "scope_id": "missing", "limit": 50}],
+            }
+            value["modules"]["local-files"] = {
+                "enabled": True,
+                "max_files": 100,
+                "roots": [{
+                    "path": temporary,
+                    "scope_id": "missing",
+                    "recursive": True,
+                    "lookback_days": 7,
+                    "include_extensions": [],
+                }],
+            }
+            errors, _ = validate_profile(value)
+            self.assertTrue(any("jira-sweep" in error and "scope_id" in error for error in errors))
+            self.assertTrue(any("local-files" in error and "scope_id" in error for error in errors))
+
 
 if __name__ == "__main__":
     unittest.main()

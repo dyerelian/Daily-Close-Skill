@@ -1,6 +1,6 @@
 ---
 name: close-day
-description: Run, install, onboard, migrate, or reconfigure a proposal-first end-of-day close for personal, organization, or multi-organization profiles. Use for close my day, EOD, daily review, plan tomorrow, meeting agendas, task capture, Daily Takeaways, recurring-meeting recaps, CRM/source-of-truth follow-ups, or setup of local close-day folders, Google/Microsoft sources, modules, profiles, and write permissions.
+description: Run, install, onboard, migrate, or reconfigure a proposal-first end-of-day close for personal, organization, or multi-organization profiles. Use for close my day, EOD, daily review, plan tomorrow, meeting agendas, task capture, Daily Takeaways, recurring-meeting recaps, CRM/source-of-truth follow-ups, or setup of local close-day folders, scoped file roots, Jira, Google/Microsoft sources, modules, profiles, and write permissions.
 ---
 
 # close-day
@@ -49,6 +49,11 @@ using Google, Microsoft, Slack, Teams, Granola, Jira, or Confluence sources.
 
 1. Read only enabled module sources and normalize each candidate to the evidence contract in
    `references/provider-adapters.md`.
+   - For `jira-sweep`, execute only configured JQL and stamp every result with that query's
+     `scope_id` before routing.
+   - For `local-files`, run `python scripts/collect_local_files.py --profile <id>`. Route the
+     emitted metadata first; read file contents only for shortlisted items inside the configured
+     root and scope.
 2. Apply global and scope exclusions before analysis. Inspect excluded material only far enough to
    recognize it, then omit it from proposals, plans, CRM, Jira, source-of-truth updates, and
    artifacts. Allow a one-run exception only when the user explicitly names the excluded topic.

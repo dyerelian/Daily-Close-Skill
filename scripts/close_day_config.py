@@ -328,6 +328,74 @@ def validate_profile(profile: dict, strict_paths: bool = False) -> tuple[list[st
                 if unknown_scopes:
                     errors.append(f"{label}.scope_ids contains unknown scopes: {', '.join(unknown_scopes)}")
 
+    jira = modules.get("jira-sweep") or {}
+    if jira.get("enabled"):
+        if not isinstance(jira.get("connector_configured"), bool):
+            errors.append("modules.jira-sweep.connector_configured must be a boolean")
+        queries = jira.get("queries")
+        if not isinstance(queries, list) or not queries:
+            errors.append("modules.jira-sweep.queries must be a non-empty array")
+        else:
+            for index, query in enumerate(queries):
+                label = f"modules.jira-sweep.queries[{index}]"
+                if not isinstance(query, dict):
+                    errors.append(f"{label} must be an object")
+                    continue
+                if not _nonempty_string(query.get("name")):
+                    errors.append(f"{label}.name must be a non-empty string")
+                if not _nonempty_string(query.get("jql")):
+                    errors.append(f"{label}.jql must be a non-empty string")
+                if query.get("scope_id") not in seen:
+                    errors.append(f"{label}.scope_id must reference a configured scope")
+                limit = query.get("limit", 50)
+                if not isinstance(limit, int) or not 1 <= limit <= 100:
+                    errors.append(f"{label}.limit must be an integer from 1 to 100")
+
+    local_files = modules.get("local-files") or {}
+    if local_files.get("enabled"):
+        max_files = local_files.get("max_files", 200)
+        if not isinstance(max_files, int) or not 1 <= max_files <= 5000:
+            errors.append("modules.local-files.max_files must be an integer from 1 to 5000")
+        max_scanned_files = local_files.get("max_scanned_files", 5000)
+        if not isinstance(max_scanned_files, int) or not 1 <= max_scanned_files <= 100000:
+            errors.append("modules.local-files.max_scanned_files must be an integer from 1 to 100000")
+        max_scanned_directories = local_files.get("max_scanned_directories", 1000)
+        if not isinstance(max_scanned_directories, int) or not 1 <= max_scanned_directories <= 10000:
+            errors.append("modules.local-files.max_scanned_directories must be an integer from 1 to 10000")
+        max_scan_seconds = local_files.get("max_scan_seconds", 15)
+        if not isinstance(max_scan_seconds, int) or not 1 <= max_scan_seconds <= 300:
+            errors.append("modules.local-files.max_scan_seconds must be an integer from 1 to 300")
+        roots = local_files.get("roots")
+        if not isinstance(roots, list) or not roots:
+            errors.append("modules.local-files.roots must be a non-empty array")
+        else:
+            for index, root_config in enumerate(roots):
+                label = f"modules.local-files.roots[{index}]"
+                if not isinstance(root_config, dict):
+                    errors.append(f"{label} must be an object")
+                    continue
+                path_text = root_config.get("path")
+                if not _nonempty_string(path_text):
+                    errors.append(f"{label}.path must be a non-empty string")
+                else:
+                    root_path = Path(path_text).expanduser()
+                    if strict_paths and not root_path.is_dir():
+                        errors.append(f"{label}.path does not exist or is not a directory: {root_path}")
+                    elif not root_path.is_dir():
+                        warnings.append(f"{label}.path does not exist or is not a directory: {root_path}")
+                if root_config.get("scope_id") not in seen:
+                    errors.append(f"{label}.scope_id must reference a configured scope")
+                if not isinstance(root_config.get("recursive", True), bool):
+                    errors.append(f"{label}.recursive must be a boolean")
+                lookback = root_config.get("lookback_days", 7)
+                if not isinstance(lookback, int) or not 1 <= lookback <= 365:
+                    errors.append(f"{label}.lookback_days must be an integer from 1 to 365")
+                extensions = root_config.get("include_extensions", [])
+                if not isinstance(extensions, list) or any(
+                    not _nonempty_string(extension) for extension in extensions
+                ):
+                    errors.append(f"{label}.include_extensions must be an array of non-empty strings")
+
     takeaway = ((profile.get("features") or {}).get("daily_takeaways") or {})
     if not isinstance(takeaway.get("enabled", False), bool):
         errors.append("features.daily_takeaways.enabled must be a boolean")

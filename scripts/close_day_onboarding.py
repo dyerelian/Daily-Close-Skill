@@ -130,6 +130,46 @@ def collect_interactive_answers() -> dict:
             "configured": False, "scope_ids": scope_ids,
         })
 
+    optional = answers["systems"].setdefault("optional_modules", {})
+    if yes_no("Enable a scoped Jira sweep?", False):
+        jira_scope = ask(f"Jira scope id ({', '.join(scope_ids)})", scope_ids[-1])
+        optional["jira-sweep"] = {
+            "enabled": True,
+            "connector": "atlassian",
+            "connector_configured": yes_no("Is the Jira connector authenticated?", False),
+            "queries": [{
+                "name": ask("Jira query name", "Assigned open work"),
+                "jql": ask(
+                    "JQL",
+                    "assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC",
+                ),
+                "scope_id": jira_scope,
+                "limit": 50,
+            }],
+        }
+    if yes_no("Enable a scoped local-folder sweep?", False):
+        roots = []
+        while True:
+            root_path = ask("Approved local folder root")
+            root_scope = ask(f"Folder scope id ({', '.join(scope_ids)})", scope_ids[-1])
+            roots.append({
+                "path": root_path,
+                "scope_id": root_scope,
+                "recursive": True,
+                "lookback_days": 7,
+                "include_extensions": [],
+            })
+            if not yes_no("Add another local folder root?", False):
+                break
+        optional["local-files"] = {
+            "enabled": True,
+            "roots": roots,
+            "max_files": 200,
+            "max_scanned_files": 5000,
+            "max_scanned_directories": 1000,
+            "max_scan_seconds": 15,
+        }
+
     excluded = [value.strip() for value in ask("Globally excluded topics (comma-separated)").split(",") if value.strip()]
     answers["routing"]["global_exclusions"] = [
         {"name": value, "match_terms": [value], "reason": "User-requested during onboarding"}
@@ -180,10 +220,28 @@ def build_profile(answers: dict) -> dict:
             "days_ahead": int(calendar.get("days_ahead") or 1),
         }
     optional = systems.get("optional_modules") or {}
-    for module_id in ("granola-meetings", "slack-sweep", "teams-local-cache", "source-of-truth", "crm-google-sheet"):
+    for module_id in (
+        "granola-meetings",
+        "slack-sweep",
+        "jira-sweep",
+        "local-files",
+        "teams-local-cache",
+        "source-of-truth",
+        "crm-google-sheet",
+    ):
         value = dict(optional.get(module_id) or {})
         if value.get("enabled"):
             workspace = Path(artifacts.get("workspace_root") or Path.home() / "Documents" / "close-day").expanduser()
+            if module_id == "jira-sweep":
+                value.setdefault("connector", "atlassian")
+                value.setdefault("connector_configured", False)
+                value.setdefault("queries", [])
+            if module_id == "local-files":
+                value.setdefault("roots", [])
+                value.setdefault("max_files", 200)
+                value.setdefault("max_scanned_files", 5000)
+                value.setdefault("max_scanned_directories", 1000)
+                value.setdefault("max_scan_seconds", 15)
             if module_id == "crm-google-sheet":
                 value.setdefault("workbook_path", str(workspace / "CRM" / "close-day-crm.xlsx"))
                 value.setdefault("proposal_output_dir", str(workspace / "CRM" / "proposals"))
@@ -261,10 +319,21 @@ def connector_gaps(profile: dict) -> list[str]:
             if not provider.get("configured"):
                 gaps.append(f"{module_id}: {provider.get('provider')} connector is not marked configured")
     optional = profile.get("modules") or {}
-    for module_id, connector in (("slack-sweep", "slack"), ("granola-meetings", "granola"), ("source-of-truth", "atlassian")):
+    for module_id, connector in (
+        ("slack-sweep", "slack"),
+        ("jira-sweep", "atlassian/Jira"),
+        ("granola-meetings", "granola"),
+        ("source-of-truth", "atlassian"),
+    ):
         module = optional.get(module_id) or {}
         if module.get("enabled") and not module.get("connector_configured", False):
             gaps.append(f"{module_id}: {connector} connector is not marked configured")
+    local_files = optional.get("local-files") or {}
+    if local_files.get("enabled"):
+        for root in local_files.get("roots") or []:
+            path = Path(root.get("path") or "").expanduser()
+            if not path.is_dir():
+                gaps.append(f"local-files: root does not exist or is not a directory: {path}")
     if ((profile.get("artifacts") or {}).get("exports") or {}).get("xlsx"):
         if importlib.util.find_spec("openpyxl") is None:
             gaps.append("XLSX export: optional dependency openpyxl is not installed")
@@ -361,6 +430,7 @@ def question_catalog() -> dict:
             "What workspace root should contain Plans, Agendas, Tasks, Logs, and State?",
             "Which Google and Microsoft mail/calendar providers are connected?",
             "Which optional meeting, chat, CRM, Jira, and source-of-truth modules are needed?",
+            "Which exact local folders may be read, and which scope owns each folder?",
             "Which local and external writes are allowed after approval?",
             "Should Daily Takeaways, recurring recaps, DOCX, and XLSX exports be enabled?",
         ],

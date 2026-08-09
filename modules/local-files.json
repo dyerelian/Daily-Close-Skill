@@ -1,0 +1,43 @@
+{
+  "id": "local-files",
+  "display_name": "Local Files",
+  "description": "Discover recently modified files under explicitly approved local roots, with every root bound to one profile scope.",
+  "required_connectors": ["local:file-system"],
+  "read_sources": [
+    {"type": "local_file_metadata", "mode": "read-only", "scope_config_key": "modules.local-files.roots[].scope_id"}
+  ],
+  "write_targets": [],
+  "config_schema": {
+    "type": "object",
+    "required": ["enabled", "roots", "max_files", "max_scanned_files", "max_scanned_directories", "max_scan_seconds"],
+    "properties": {
+      "enabled": {"type": "boolean"},
+      "roots": {"type": "array"},
+      "max_files": {"type": "integer"},
+      "max_scanned_files": {"type": "integer"},
+      "max_scanned_directories": {"type": "integer"},
+      "max_scan_seconds": {"type": "integer"}
+    }
+  },
+  "onboarding": {
+    "question": "Which local folders should the close inspect for recently changed files?",
+    "default_for_profiles": [],
+    "setup_questions": [
+      "Which exact folder root is approved?",
+      "Which single profile scope owns that root?",
+      "How many days of changes and which file extensions should be considered?"
+    ],
+    "connector_probes": ["Verify each configured root exists without reading file contents."],
+    "required_artifacts": [],
+    "optional_artifacts": ["Normalized recent-file metadata emitted by scripts/collect_local_files.py."],
+    "config_keys": [
+      "modules.local-files.roots",
+      "modules.local-files.max_files",
+      "modules.local-files.max_scanned_files",
+      "modules.local-files.max_scanned_directories",
+      "modules.local-files.max_scan_seconds"
+    ]
+  },
+  "enabled_by_default": false,
+  "proposal_output_type": "local_file_candidates"
+}

@@ -9,7 +9,7 @@ unclassified items, and asks for approval before local or external writes.
 - Named profiles containing personal and/or organization scopes.
 - Private configuration outside the Git repository.
 - Google and Microsoft mail/calendar provider adapters, plus optional Slack, Teams, Granola,
-  Atlassian, CRM, and source-of-truth modules.
+  scoped Jira, scoped local-file, Atlassian, CRM, and source-of-truth modules.
 - A user-selected workspace root with derived `Plans`, `Agendas`, `Tasks`, `Logs`, and `State`.
 - Canonical Markdown/JSON artifacts with optional DOCX/XLSX exports.
 - Optional Daily Takeaways, recurring-meeting recaps, and DOCX page numbers.

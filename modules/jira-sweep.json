@@ -1,0 +1,38 @@
+{
+  "id": "jira-sweep",
+  "display_name": "Jira Sweep",
+  "description": "Read configured Jira queries for assigned work, blockers, updates, and follow-ups within one explicit profile scope per query.",
+  "required_connectors": ["atlassian"],
+  "read_sources": [
+    {"type": "jira", "mode": "read-only", "scope_config_key": "modules.jira-sweep.queries[].scope_id"}
+  ],
+  "write_targets": [],
+  "config_schema": {
+    "type": "object",
+    "required": ["enabled", "connector_configured", "queries"],
+    "properties": {
+      "enabled": {"type": "boolean"},
+      "connector": {"type": "string"},
+      "connector_configured": {"type": "boolean"},
+      "queries": {"type": "array"}
+    }
+  },
+  "onboarding": {
+    "question": "Which scoped Jira queries should the close read?",
+    "default_for_profiles": [],
+    "setup_questions": [
+      "Is an Atlassian/Jira connector authenticated?",
+      "Which JQL query should be used for each profile scope?",
+      "What maximum number of issues should each query return?"
+    ],
+    "connector_probes": ["Read the authenticated Jira identity without listing issue content."],
+    "required_artifacts": [],
+    "optional_artifacts": [],
+    "config_keys": [
+      "modules.jira-sweep.connector_configured",
+      "modules.jira-sweep.queries"
+    ]
+  },
+  "enabled_by_default": false,
+  "proposal_output_type": "jira_capture_candidates"
+}

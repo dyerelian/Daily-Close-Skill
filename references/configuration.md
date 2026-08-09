@@ -31,6 +31,12 @@ without an explicit user request.
 - `privacy` and `permissions`: data retention and write gates.
 - `enabled_modules` and `modules`: provider and capability configuration.
 
+For `jira-sweep`, configure one or more objects containing `name`, `jql`, `scope_id`, and `limit`.
+For `local-files`, configure approved roots containing `path`, `scope_id`, `recursive`,
+`lookback_days`, and optional `include_extensions`. Bound large-drive traversal with `max_files`,
+`max_scanned_files`, `max_scanned_directories`, and `max_scan_seconds`. Keep each query and root
+bound to one scope.
+
 ## Scope routing
 
 Each scope declares:
