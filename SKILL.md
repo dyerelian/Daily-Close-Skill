@@ -8,6 +8,21 @@ description: Run, install, onboard, migrate, or reconfigure a proposal-first end
 Run a read-first, proposal-first close. Keep personal and organization data labeled by configured
 scope. Never perform an external write or create a local artifact before the applicable approval.
 
+## Install requests
+
+When asked to install from GitHub, handle the installation for the user. Do not ask the user to
+clone the repository or run Python commands.
+
+1. Prefer the environment's native skill installer. Install `dyerelian/Daily-Close-Skill` from
+   `main`, using repository path `.` and installation name `close-day`.
+2. If no native installer exists, download or clone the repository into the environment's standard
+   skills directory under `close-day`.
+3. If the destination already exists, inspect it and ask before replacing it. Never silently
+   overwrite an installed skill or its private configuration.
+4. After installation, read the installed `SKILL.md` directly and continue with first-run setup in
+   the current conversation. If skill discovery refreshes only between turns, explain that future
+   requests will discover it on the next turn; do not defer onboarding solely for that reason.
+
 ## Start and first run
 
 1. Resolve this skill directory; use the current folder or `~/.codex/skills/close-day`.

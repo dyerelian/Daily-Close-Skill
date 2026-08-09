@@ -15,23 +15,53 @@ unclassified items, and asks for approval before local or external writes.
 - Optional Daily Takeaways, recurring-meeting recaps, and DOCX page numbers.
 - Cross-platform installation, onboarding, migration, routing, and validation scripts.
 
-## Install and onboard
+## Quick start: tell your LLM
 
-Check the environment and preview installation:
+Give the following instruction to a terminal-capable LLM agent. The agent should handle installation
+and start setup; the user should not need to clone the repository or run Python commands.
+
+> Install and configure the `close-day` agent skill from
+> `https://github.com/dyerelian/Daily-Close-Skill` using the `main` branch. The skill is located at
+> the repository root and must be installed under the name `close-day`. Use your environment's
+> native skill installer when available; otherwise handle downloading and placement in the
+> appropriate skills directory yourself. Do not ask me to clone the repository or run Python
+> commands. If `close-day` already exists, inspect it and ask before replacing it. After
+> installation, read the installed `SKILL.md` and begin first-time onboarding conversationally.
+> Show me the proposed profile, scopes, folders, permissions, exclusions, enabled modules, and
+> connector gaps before creating configuration or folders, and wait for my explicit approval.
+
+For Codex agents, the verified native installer arguments are:
+
+```text
+repo: dyerelian/Daily-Close-Skill
+path: .
+name: close-day
+ref: main
+```
+
+The repository-root `path` and explicit `name` are important. A newly installed skill may not be
+automatically discoverable until the next turn; the installing agent should read the installed
+`SKILL.md` directly and continue onboarding in the current conversation.
+
+## Manual and developer installation
+
+These commands are a fallback for maintainers and environments without an agent-managed skill
+installer. Check the environment and preview installation:
 
 ```powershell
 python scripts/install_close_day.py check
 python scripts/install_close_day.py install --dry-run
 ```
 
-Install and enter the first-run wizard:
+Install and enter the terminal-based first-run wizard:
 
 ```powershell
 python scripts/install_close_day.py install
 ```
 
-For a conversational setup, generate the question/answer contract, fill a private answer file, and
-preview before applying:
+For an agent-managed conversational setup, the agent generates the question/answer contract,
+collects answers in conversation, stores them in a private temporary answer file, and previews the
+profile before applying it:
 
 ```powershell
 python scripts/onboard_close_day.py questions
