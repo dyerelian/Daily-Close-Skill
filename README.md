@@ -122,6 +122,15 @@ The agent shows its exact delivery details in the close proposal, sends or draft
 runtime Gmail connector after approval, and records only non-provider delivery state in the close
 JSON so a matching successful delivery is not repeated.
 
+## Future improvements
+
+These are backlog notes only and are not implemented:
+
+- **Canonical sources of truth:** Add a proposal-gated integration that can create or update a
+  configured project's canonical source-of-truth page or record.
+- **Daily Success agenda items:** Add opt-in, per-profile routines such as journaling, working out,
+  and medication to the daily agenda, with configurable schedules and completion tracking.
+
 ## Development checks
 
 ```powershell
