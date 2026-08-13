@@ -66,3 +66,8 @@ running another profile.
 Probe connectors during onboarding without requesting content. If a selected connector is missing,
 report the module and provider as a coverage gap. Continue only after the user agrees to available
 coverage. Never replace a missing Google or Microsoft source with an unrelated account or provider.
+
+Treat `connector_configured` as an authentication declaration, not proof that Gmail write actions
+work. Verify the write path on the first approved delivery. Classify connector schema errors that
+require a `payload` field absent from the published Gmail action as `workspace_policy`; do not call
+them duplicates or retry them in a loop. See [gmail-delivery.md](gmail-delivery.md).

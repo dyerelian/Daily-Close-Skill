@@ -233,7 +233,9 @@ def collect_interactive_answers() -> dict:
             "enabled": True,
             "provider": "gmail",
             "connector": "gmail",
-            "connector_configured": yes_no("Is the Gmail connector authenticated?", False),
+            "connector_configured": yes_no(
+                "Is the Gmail connector authenticated as this sender?", False
+            ),
             "from": sender,
             "recipients": recipients,
             "mode": mode,
@@ -517,7 +519,8 @@ def question_catalog() -> dict:
             "Which local and external writes are allowed after approval?",
             "Should Daily Takeaways require an exact count, and should an incomplete close pause for answers?",
             "Should Daily Plan DOCX, agenda DOCX, and XLSX exports be enabled separately?",
-            "Should a finalized plan be sent or drafted by email, from which Gmail account, to which recipients, with what subject, body style, and attachment?",
+            "Should a finalized plan be sent or drafted by email after the one consolidated close approval, from which Gmail account, to which recipients, with what subject, body style, and attachment?",
+            "Does Gmail offer a narrow send-email approval override, or should its platform confirmation remain enabled?",
         ],
         "modules": {key: value.get("onboarding", {}) for key, value in manifests.items()},
     }

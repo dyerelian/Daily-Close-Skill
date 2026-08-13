@@ -13,7 +13,7 @@ unclassified items, and asks for approval before local or external writes.
 - A user-selected workspace root with derived `Plans`, `Agendas`, `Tasks`, `Logs`, and `State`.
 - Canonical Markdown/JSON artifacts with independent Daily Plan DOCX, agenda DOCX, and XLSX exports.
 - Optional exact-count Daily Plan reflections, recurring-meeting recaps, DOCX page numbers, and
-  proposal-gated Gmail delivery of the finalized plan.
+  one-close-approval Gmail delivery of the finalized plan with durable, duplicate-safe retries.
 - Cross-platform installation, onboarding, migration, routing, and validation scripts.
 
 ## Quick start: tell your LLM
@@ -32,7 +32,8 @@ and start setup; the user should not need to clone the repository or run Python 
 > connector gaps before creating configuration or folders, and wait for my explicit approval.
 > During the wizard, ask separately about the workspace root, Daily Plan DOCX, agenda DOCX, the
 > required count and incomplete-answer policy for yesterday/today reflections, and finalized-plan
-> email delivery (sender, recipients, send versus draft, subject, body style, and attachment).
+> email delivery (sender, recipients, send versus draft, subject, body style, attachment, and the
+> narrowest available Gmail send-action permission).
 
 For Codex agents, the verified native installer arguments are:
 
@@ -118,9 +119,15 @@ Existing dated artifacts are not overwritten. OAuth credentials are never stored
 and external writes remain separately proposal-gated.
 
 When configured, the finalized Daily Plan email is prepared only after DOCX render verification.
-The agent shows its exact delivery details in the close proposal, sends or drafts it through the
-runtime Gmail connector after approval, and records only non-provider delivery state in the close
-JSON so a matching successful delivery is not repeated.
+The agent shows its exact delivery details in the close proposal and records that delivery key as
+approved. It then sends or drafts through the runtime Gmail connector without a second skill-level
+approval. Matching interrupted or failed deliveries require an exact Sent-folder check before a
+safe retry; matching successful deliveries are never repeated. Gmail identifiers are not stored.
+
+Gmail's own app confirmation setting remains independent. Prefer an action-specific exception when
+available; do not set the whole Gmail plugin to `Never ask` solely for close-day. See
+`references/gmail-delivery.md` for managed-workspace constraints, Google scope setup, and the
+diagnostic for an unexpected required `payload` field.
 
 ## Future improvements
 

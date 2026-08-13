@@ -47,6 +47,7 @@ def prepare_email(
     profile: dict,
     require_attachments: bool = True,
     allow_failed_retry: bool = False,
+    sent_check_absent: bool = False,
 ) -> dict:
     errors, _ = validate_profile(profile)
     if errors:
@@ -94,18 +95,37 @@ def prepare_email(
         json.dumps(identity, ensure_ascii=False, sort_keys=True).encode("utf-8")
     ).hexdigest()
     prior = (((payload.get("delivery") or {}).get("email")) or {})
-    prior_status = prior.get("status") if prior.get("delivery_key") == delivery_key else None
+    same_delivery = prior.get("delivery_key") == delivery_key
+    prior_status = prior.get("status") if same_delivery else None
+    approved = (
+        same_delivery
+        and prior.get("approved_delivery_key") == delivery_key
+        and bool(prior.get("approved_at"))
+    )
+    requires_sent_check = False
     if prior_status == "sent":
         status = "already_sent"
     elif prior_status == "pending":
-        status = "pending_review"
-    elif prior_status == "failed" and not allow_failed_retry:
+        requires_sent_check = not sent_check_absent
+        status = "approved_retry" if approved and sent_check_absent else "pending_review"
+    elif prior_status == "failed" and approved:
+        requires_sent_check = not sent_check_absent
+        status = "approved_retry" if sent_check_absent else "sent_check_required"
+    elif prior_status == "failed" and allow_failed_retry:
+        requires_sent_check = not sent_check_absent
+        status = "legacy_retry" if sent_check_absent else "sent_check_required"
+    elif prior_status == "failed":
         status = "failed_requires_retry"
+    elif prior_status == "approved" and approved:
+        status = "approved_ready"
     else:
-        status = "ready"
+        status = "approval_required"
     return {
         "status": status,
-        "send": status == "ready",
+        "send": status in {"approved_ready", "approved_retry", "legacy_retry"},
+        "approved": approved,
+        "requires_sent_check": requires_sent_check,
+        "sent_check_absent": sent_check_absent,
         "action": "send" if module["mode"] == "send_after_approved_close" else "draft",
         "delivery_key": delivery_key,
         "connector": module["connector"],
@@ -135,7 +155,18 @@ def main() -> int:
     parser.add_argument(
         "--retry-failed",
         action="store_true",
-        help="Explicitly retry a matching delivery previously recorded as failed.",
+        help=(
+            "Explicitly retry a legacy failed delivery that lacks durable close approval. "
+            "Approved delivery keys resume without this flag."
+        ),
+    )
+    parser.add_argument(
+        "--sent-check-absent",
+        action="store_true",
+        help=(
+            "Confirm that an exact Gmail Sent search found no matching delivery. "
+            "Required before an interrupted or failed delivery becomes sendable."
+        ),
     )
     args = parser.parse_args()
     if args.profile_file:
@@ -150,6 +181,7 @@ def main() -> int:
         profile,
         not args.allow_missing_attachments,
         allow_failed_retry=args.retry_failed,
+        sent_check_absent=args.sent_check_absent,
     )
     if args.output:
         atomic_write_json(Path(args.output).expanduser(), envelope)

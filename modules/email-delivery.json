@@ -1,7 +1,7 @@
 {
   "id": "email-delivery",
   "display_name": "Daily Plan Email Delivery",
-  "description": "Prepare a deterministic Gmail delivery envelope for the finalized Daily Plan and record delivery state without storing OAuth credentials or Gmail identifiers.",
+  "description": "Prepare a deterministic Gmail delivery envelope for the finalized Daily Plan, preserve its consolidated-close approval across safe retries, and record delivery state without OAuth credentials or Gmail identifiers.",
   "required_connectors": ["gmail"],
   "read_sources": [
     {"type": "approved_close_payload", "mode": "generated from approved proposal"},
@@ -48,7 +48,10 @@
       "What subject template and body style should be used?",
       "Should the Daily Plan DOCX be attached?"
     ],
-    "connector_probes": ["Check that the configured Gmail connector is authenticated."],
+    "connector_probes": [
+      "Check that the configured Gmail connector is authenticated as the requested sender.",
+      "Treat the first approved send as write-path verification; authentication alone does not validate workspace action constraints."
+    ],
     "required_artifacts": ["Finalized Daily Plan and configured recipient list."],
     "optional_artifacts": ["Daily Plan DOCX attachment."],
     "config_keys": [

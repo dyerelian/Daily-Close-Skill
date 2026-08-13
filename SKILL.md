@@ -44,6 +44,8 @@ clone the repository or run Python commands.
 Read [configuration.md](references/configuration.md) when onboarding, migrating, editing a profile,
 or resolving classification. Read [provider-adapters.md](references/provider-adapters.md) when
 using Google, Microsoft, Slack, Teams, Granola, Jira, or Confluence sources.
+Read [gmail-delivery.md](references/gmail-delivery.md) when enabling or troubleshooting Daily Plan
+email delivery.
 
 ## Gather and route
 
@@ -116,10 +118,19 @@ Plan renderer and use its configurable page-number footer.
 
 When `email-delivery` is enabled, prepare the deterministic envelope with
 `scripts/prepare_close_email.py` only after the approved artifacts exist and the Daily Plan DOCX has
-passed render review. Record `pending`, send or draft through the runtime Gmail connector according
-to the configured mode, then record `sent` or `failed` with `scripts/record_email_delivery.py`.
-Never store OAuth credentials or Gmail message/thread identifiers. Do not resend when the state has
-a matching `sent` delivery key; require an explicit retry after a failed delivery.
+passed render review. Record `approved` for the displayed email covered by the consolidated close
+approval, prepare again, then record `pending` immediately before sending or drafting through the
+runtime Gmail connector. Record `sent` or categorized `failed` afterward. Never store OAuth
+credentials or Gmail message/thread identifiers.
+
+Treat a matching `approved_delivery_key` as durable authorization for that exact sender,
+recipients, subject, body, attachment set, mode, and target date. Do not ask for another skill-level
+approval when resuming that delivery. Before resuming a matching `pending` or `failed` delivery,
+search Gmail Sent for the exact recipient and subject. Record `sent` without resending when found;
+when absent, prepare with `--sent-check-absent` and send only if the resulting envelope is sendable.
+Stop when the Sent check is unavailable or the provider outcome is ambiguous. A changed delivery
+key requires inclusion in a new consolidated proposal. Never change the subject merely to bypass
+duplicate protection.
 
 When CRM is enabled, read [crm-google-sheet.md](references/crm-google-sheet.md). Keep mail-derived
 CRM changes proposal-only. Generate local workbook/CSV output unless a live Sheets connector and

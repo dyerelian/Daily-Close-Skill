@@ -68,7 +68,10 @@ count; `allow_partial` retains the prior non-padding behavior.
 Email delivery is an optional Gmail runtime-connector module. Configure `from`, `recipients`,
 `mode`, `subject_template`, `body_style`, and attachments. Enable
 `permissions.email_delivery_enabled` separately from general external writes. Store delivery
-status and a deterministic key in close state, but never OAuth data or Gmail identifiers.
+status, deterministic key, approved delivery key, approval time, attempt count, and categorized
+failure in close state, but never OAuth data or Gmail identifiers. The deterministic identity
+includes the profile, target date, sender, recipients, subject, body, attachments, and mode; any
+change requires a new consolidated close approval.
 
 ## Migration and readiness
 
