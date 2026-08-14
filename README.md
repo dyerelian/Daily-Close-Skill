@@ -14,6 +14,8 @@ unclassified items, and asks for approval before local or external writes.
 - Canonical Markdown/JSON artifacts with independent Daily Plan DOCX, agenda DOCX, and XLSX exports.
 - Optional exact-count Daily Plan reflections, recurring-meeting recaps, DOCX page numbers, and
   one-close-approval Gmail delivery of the finalized plan with durable, duplicate-safe retries.
+- Portable CRM workbooks or scope-bound incremental CRM review through a configured handler skill,
+  with deterministic proposals and verified writes under the consolidated close approval.
 - Cross-platform installation, onboarding, migration, routing, and validation scripts.
 
 ## Quick start: tell your LLM
@@ -33,7 +35,9 @@ and start setup; the user should not need to clone the repository or run Python 
 > During the wizard, ask separately about the workspace root, Daily Plan DOCX, agenda DOCX, the
 > required count and incomplete-answer policy for yesterday/today reflections, and finalized-plan
 > email delivery (sender, recipients, send versus draft, subject, body style, attachment, and the
-> narrowest available Gmail send-action permission).
+> narrowest available Gmail send-action permission). If CRM review is requested, ask whether to
+> create a portable workbook or use an existing handler skill, which scopes it may receive, the
+> first-run/overlap window, inference confidence, new-row policy, and live-write permission.
 
 For Codex agents, the verified native installer arguments are:
 
@@ -117,6 +121,12 @@ python scripts/create_close_artifacts.py --input approved-close.json --profile m
 
 Existing dated artifacts are not overwritten. OAuth credentials are never stored in this project,
 and external writes remain separately proposal-gated.
+
+For an existing CRM, configure `crm-google-sheet` in `delegated_handler` mode. The close prepares a
+scope-filtered incremental request, validates deterministic cell-level changes from the handler,
+and includes them in the consolidated proposal. The handler re-reads affected rows before approved
+writes and verifies them afterward; its standalone weekly Jira rollover remains disabled during a
+daily close. See `references/crm-handler-contract.md`.
 
 When configured, the finalized Daily Plan email is prepared only after DOCX render verification.
 The agent shows its exact delivery details in the close proposal and records that delivery key as

@@ -183,6 +183,45 @@ def collect_interactive_answers() -> dict:
             "max_scan_seconds": 15,
         }
 
+    if yes_no("Include a CRM review in each close?", False):
+        crm_scope = ask(f"CRM scope id ({', '.join(scope_ids)})", scope_ids[-1])
+        delegated = yes_no("Use an existing specialized CRM handler skill?", True)
+        allow_live_writes = yes_no(
+            "Allow exact CRM cell writes after the consolidated close approval?", False
+        )
+        if delegated:
+            handler_skill = ask("CRM handler skill name", "update-crm")
+            handler_path = ask("CRM handler SKILL.md path (optional)")
+            optional["crm-google-sheet"] = {
+                "enabled": True,
+                "mode": "delegated_handler",
+                "scope_ids": [crm_scope],
+                "handler_skill": handler_skill,
+                **({"handler_path": handler_path} if handler_path else {}),
+                "review_mode": "incremental_daily",
+                "first_run_lookback_days": bounded_int(
+                    "First CRM review lookback in days", 14, 1, 365
+                ),
+                "overlap_hours": bounded_int(
+                    "CRM review overlap in hours", 24, 0, 168
+                ),
+                "allow_new_rows": yes_no(
+                    "Propose new rows for clearly identified contacts?", True
+                ),
+                "minimum_confidence": ask(
+                    "Minimum proposed inference confidence (medium/high)", "medium"
+                ).lower(),
+                "allow_live_sheet_writes": allow_live_writes,
+                "roll_weekly_jira": False,
+            }
+        else:
+            optional["crm-google-sheet"] = {
+                "enabled": True,
+                "mode": "portable_workbook",
+                "allow_live_sheet_writes": allow_live_writes,
+            }
+        answers["permissions"]["crm_writes_enabled"] = allow_live_writes
+
     excluded = [value.strip() for value in ask("Globally excluded topics (comma-separated)").split(",") if value.strip()]
     answers["routing"]["global_exclusions"] = [
         {"name": value, "match_terms": [value], "reason": "User-requested during onboarding"}
@@ -311,10 +350,19 @@ def build_profile(answers: dict) -> dict:
                 value.setdefault("max_scanned_directories", 1000)
                 value.setdefault("max_scan_seconds", 15)
             if module_id == "crm-google-sheet":
-                value.setdefault("workbook_path", str(workspace / "CRM" / "close-day-crm.xlsx"))
-                value.setdefault("proposal_output_dir", str(workspace / "CRM" / "proposals"))
-                value.setdefault("csv_seed_dir", str(workspace / "CRM" / "csv_seed"))
+                value.setdefault("mode", "portable_workbook")
                 value.setdefault("allow_live_sheet_writes", False)
+                if value["mode"] == "portable_workbook":
+                    value.setdefault("workbook_path", str(workspace / "CRM" / "close-day-crm.xlsx"))
+                    value.setdefault("proposal_output_dir", str(workspace / "CRM" / "proposals"))
+                    value.setdefault("csv_seed_dir", str(workspace / "CRM" / "csv_seed"))
+                else:
+                    value.setdefault("review_mode", "incremental_daily")
+                    value.setdefault("first_run_lookback_days", 14)
+                    value.setdefault("overlap_hours", 24)
+                    value.setdefault("allow_new_rows", False)
+                    value.setdefault("minimum_confidence", "high")
+                    value.setdefault("roll_weekly_jira", False)
             if module_id == "source-of-truth":
                 value.setdefault("mode", "local_files")
                 value.setdefault("allow_confluence_writes", False)
@@ -423,8 +471,21 @@ def connector_gaps(profile: dict) -> list[str]:
         if importlib.util.find_spec("openpyxl") is None:
             gaps.append("XLSX export: optional dependency openpyxl is not installed")
     if ((profile.get("modules") or {}).get("crm-google-sheet") or {}).get("enabled"):
-        if importlib.util.find_spec("openpyxl") is None:
-            gaps.append("CRM workbook: optional dependency openpyxl is not installed")
+        crm = (profile.get("modules") or {}).get("crm-google-sheet") or {}
+        if crm.get("mode", "portable_workbook") == "portable_workbook":
+            if importlib.util.find_spec("openpyxl") is None:
+                gaps.append("CRM workbook: optional dependency openpyxl is not installed")
+        else:
+            configured_path = crm.get("handler_path")
+            candidate = (
+                Path(configured_path).expanduser()
+                if configured_path
+                else Path.home() / ".codex" / "skills" / str(crm.get("handler_skill") or "") / "SKILL.md"
+            )
+            if not candidate.is_file():
+                gaps.append(
+                    f"CRM handler skill is not available at the configured path: {candidate}"
+                )
     return gaps
 
 
@@ -452,7 +513,7 @@ def create_workspace(profile: dict) -> list[str]:
             created.append(str(path))
     modules = profile.get("modules") or {}
     crm = modules.get("crm-google-sheet") or {}
-    if crm.get("enabled"):
+    if crm.get("enabled") and crm.get("mode", "portable_workbook") == "portable_workbook":
         workbook = Path(crm["workbook_path"])
         if not workbook.exists() and importlib.util.find_spec("openpyxl") is not None:
             from generate_crm_workbook import create_workbook
@@ -475,7 +536,7 @@ def rebase_dry_run_paths(profile: dict, workspace: Path) -> None:
     profile["artifacts"]["path_overrides"] = {}
     modules = profile.get("modules") or {}
     crm = modules.get("crm-google-sheet") or {}
-    if crm.get("enabled"):
+    if crm.get("enabled") and crm.get("mode", "portable_workbook") == "portable_workbook":
         crm["workbook_path"] = str(workspace / "CRM" / "close-day-crm.xlsx")
         crm["csv_seed_dir"] = str(workspace / "CRM" / "csv_seed")
         crm["proposal_output_dir"] = str(workspace / "CRM" / "proposals")
@@ -515,6 +576,7 @@ def question_catalog() -> dict:
             "What workspace root should contain Plans, Agendas, Tasks, Logs, and State?",
             "Which Google and Microsoft mail/calendar providers are connected?",
             "Which optional meeting, chat, CRM, Jira, and source-of-truth modules are needed?",
+            "Should CRM use a portable workbook or delegate an incremental review to a configured handler skill, for which scopes and confidence threshold?",
             "Which exact local folders may be read, and which scope owns each folder?",
             "Which local and external writes are allowed after approval?",
             "Should Daily Takeaways require an exact count, and should an incomplete close pause for answers?",

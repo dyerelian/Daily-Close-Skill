@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from create_close_artifacts import (  # noqa: E402
     build_outputs,
     create_task_xlsx,
+    eod_markdown,
     export_paths,
     validate_required_takeaways,
 )
@@ -75,6 +76,31 @@ class ArtifactTests(unittest.TestCase):
             self.assertIn("[Personal] Exercise", rendered)
             self.assertIn("Last meeting recap", rendered)
             self.assertEqual(len(outputs), 5)
+
+    def test_eod_log_records_compact_crm_review(self) -> None:
+        payload = {
+            "date": "2026-08-14",
+            "crm_review": {
+                "status": "completed",
+                "handler_skill": "update-crm",
+                "window": {
+                    "start": "2026-08-13T17:00:00-07:00",
+                    "end": "2026-08-14T17:00:00-07:00",
+                },
+                "counts": {"applied": 2, "rejected": 1},
+                "summary_items": [
+                    {"text": "Updated Acme last interaction", "scope_id": "acme"}
+                ],
+                "review_flags": [
+                    {"text": "Confirm partner role", "scope_id": "acme"}
+                ],
+                "gaps": ["Slack unavailable"],
+            },
+        }
+        rendered = eod_markdown(payload, {"acme": "Acme"})
+        self.assertIn("CRM Review", rendered)
+        self.assertIn("[Acme] Updated Acme last interaction", rendered)
+        self.assertIn("Slack unavailable", rendered)
 
     def test_optional_export_jobs_are_derived_from_profile(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

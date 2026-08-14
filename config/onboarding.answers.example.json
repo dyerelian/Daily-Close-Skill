@@ -97,7 +97,11 @@
       },
       "teams-local-cache": {"enabled": false},
       "source-of-truth": {"enabled": false, "connector_configured": false},
-      "crm-google-sheet": {"enabled": false, "connector_configured": false},
+      "crm-google-sheet": {
+        "enabled": false,
+        "mode": "portable_workbook",
+        "connector_configured": false
+      },
       "email-delivery": {
         "enabled": false,
         "provider": "gmail",

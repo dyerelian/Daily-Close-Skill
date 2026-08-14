@@ -1,12 +1,21 @@
 {
   "id": "crm-google-sheet",
   "display_name": "CRM Google Sheet",
-  "description": "Generate a Google-Sheets-compatible CRM workbook and mail-driven update proposals; live sheet writes are gated.",
+  "description": "Create a portable CRM workbook or delegate incremental, scope-bound CRM reconciliation to a configured handler skill; all live writes are proposal-gated.",
   "required_connectors": [],
   "read_sources": [
     {
       "type": "mail_provider_adapter",
       "mode": "read-only"
+    },
+    {
+      "type": "calendar_provider_adapter",
+      "mode": "read-only"
+    },
+    {
+      "type": "delegated_skill",
+      "skill_config_key": "modules.crm-google-sheet.handler_skill",
+      "mode": "read-only until the consolidated proposal is approved"
     },
     {
       "type": "xlsx_or_csv",
@@ -29,13 +38,14 @@
   "config_schema": {
     "type": "object",
     "required": [
-      "enabled",
-      "workbook_path",
-      "proposal_output_dir"
+      "enabled"
     ],
     "properties": {
       "enabled": {
         "type": "boolean"
+      },
+      "mode": {
+        "type": "string"
       },
       "workbook_path": {
         "type": "string"
@@ -51,6 +61,33 @@
       },
       "allow_live_sheet_writes": {
         "type": "boolean"
+      },
+      "scope_ids": {
+        "type": "array"
+      },
+      "handler_skill": {
+        "type": "string"
+      },
+      "handler_path": {
+        "type": "string"
+      },
+      "review_mode": {
+        "type": "string"
+      },
+      "first_run_lookback_days": {
+        "type": "integer"
+      },
+      "overlap_hours": {
+        "type": "integer"
+      },
+      "allow_new_rows": {
+        "type": "boolean"
+      },
+      "minimum_confidence": {
+        "type": "string"
+      },
+      "roll_weekly_jira": {
+        "type": "boolean"
       }
     }
   },
@@ -60,17 +97,22 @@
       "solo_operator"
     ],
     "setup_questions": [
-      "Do you already have a CRM workbook or Google Sheet?",
+      "Do you need a portable workbook or an existing-CRM handler skill?",
       "If not, should setup create the close-day CRM workbook template?",
+      "Which configured scopes may send evidence to the CRM handler?",
+      "Should each close run an incremental review, and how far back should its first run look?",
+      "May completed meetings support labeled inferences, and what minimum confidence may be proposed?",
+      "May clearly identified contacts be proposed as new rows?",
       "Which customer, prospect, partner, and program keywords should seed mail searches?",
       "Should CRM updates stay proposal-only or allow sheet updates after approval?"
     ],
     "connector_probes": [
       "Check the configured Gmail or Outlook adapter when mail seeding is enabled.",
-      "Check workbook path exists when an existing CRM is selected."
+      "Check workbook path exists for portable_workbook mode.",
+      "Check the configured handler skill and its declared CRM access route for delegated_handler mode."
     ],
     "required_artifacts": [
-      "CRM workbook or Google Sheet with Accounts, Contacts, Interactions, FollowUps, and Lists."
+      "Portable CRM workbook, or a configured handler skill that owns an existing CRM schema and access route."
     ],
     "optional_artifacts": [
       "Provider-neutral mail seed queries.",
@@ -82,7 +124,17 @@
       "modules.crm-google-sheet.proposal_output_dir",
       "modules.crm-google-sheet.seed_queries",
       "modules.crm-google-sheet.enabled",
-      "modules.crm-google-sheet.allow_live_sheet_writes"
+      "modules.crm-google-sheet.mode",
+      "modules.crm-google-sheet.allow_live_sheet_writes",
+      "modules.crm-google-sheet.scope_ids",
+      "modules.crm-google-sheet.handler_skill",
+      "modules.crm-google-sheet.handler_path",
+      "modules.crm-google-sheet.review_mode",
+      "modules.crm-google-sheet.first_run_lookback_days",
+      "modules.crm-google-sheet.overlap_hours",
+      "modules.crm-google-sheet.allow_new_rows",
+      "modules.crm-google-sheet.minimum_confidence",
+      "modules.crm-google-sheet.roll_weekly_jira"
     ]
   },
   "enabled_by_default": true,

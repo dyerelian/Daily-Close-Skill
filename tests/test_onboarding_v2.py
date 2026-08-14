@@ -113,6 +113,33 @@ class OnboardingTests(unittest.TestCase):
         self.assertIn("recipient", questions)
         self.assertIn("exact count", questions)
 
+    def test_delegated_crm_answers_map_to_profile(self) -> None:
+        answers = copy.deepcopy(load_json(ROOT / "config" / "onboarding.answers.example.json"))
+        scope_id = answers["scopes"][0]["id"]
+        answers["permissions"]["crm_writes_enabled"] = True
+        answers["systems"]["optional_modules"]["crm-google-sheet"] = {
+            "enabled": True,
+            "mode": "delegated_handler",
+            "scope_ids": [scope_id],
+            "handler_skill": "update-crm",
+            "review_mode": "incremental_daily",
+            "first_run_lookback_days": 14,
+            "overlap_hours": 24,
+            "allow_new_rows": True,
+            "minimum_confidence": "medium",
+            "allow_live_sheet_writes": True,
+            "roll_weekly_jira": False,
+        }
+        profile = build_profile(answers)
+        errors, _ = validate_profile(profile)
+        self.assertEqual(errors, [])
+        self.assertIn("crm-google-sheet", profile["enabled_modules"])
+        self.assertEqual(
+            profile["modules"]["crm-google-sheet"]["mode"], "delegated_handler"
+        )
+        questions = " ".join(question_catalog()["core_questions"])
+        self.assertIn("handler skill", questions)
+
 
 if __name__ == "__main__":
     unittest.main()

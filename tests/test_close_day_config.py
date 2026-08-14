@@ -133,6 +133,7 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual(migrated["schema_version"], 2)
         self.assertEqual(migrated["routing"]["global_exclusions"][0]["name"], "Excluded Account")
         self.assertTrue(migrated["permissions"]["external_writes_enabled"])
+        self.assertEqual(migrated["modules"]["crm-google-sheet"]["mode"], "portable_workbook")
         self.assertEqual(migrated["modules"]["crm-google-sheet"]["csv_seed_dir"], "legacy-csv")
         errors, _ = validate_profile(migrated)
         self.assertEqual(errors, [])
@@ -184,6 +185,36 @@ class ProfileTests(unittest.TestCase):
             value["permissions"]["email_delivery_enabled"] = True
             errors, _ = validate_profile(value)
             self.assertEqual(errors, [])
+
+    def test_delegated_crm_requires_narrow_scope_and_permission(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            value = profile(Path(temporary))
+            value["enabled_modules"].append("crm-google-sheet")
+            value["modules"]["crm-google-sheet"] = {
+                "enabled": True,
+                "mode": "delegated_handler",
+                "scope_ids": ["acme"],
+                "handler_skill": "update-crm",
+                "review_mode": "incremental_daily",
+                "first_run_lookback_days": 14,
+                "overlap_hours": 24,
+                "allow_new_rows": True,
+                "minimum_confidence": "medium",
+                "allow_live_sheet_writes": True,
+                "roll_weekly_jira": False,
+            }
+            errors, _ = validate_profile(value)
+            self.assertTrue(any("crm_writes_enabled" in error for error in errors))
+            value["permissions"]["crm_writes_enabled"] = True
+            errors, _ = validate_profile(value)
+            self.assertEqual(errors, [])
+            value["modules"]["crm-google-sheet"]["scope_ids"] = ["missing"]
+            errors, _ = validate_profile(value)
+            self.assertTrue(any("unknown scopes" in error for error in errors))
+            value["modules"]["crm-google-sheet"]["scope_ids"] = ["acme"]
+            value["modules"]["crm-google-sheet"]["roll_weekly_jira"] = True
+            errors, _ = validate_profile(value)
+            self.assertTrue(any("roll_weekly_jira" in error for error in errors))
 
 
 if __name__ == "__main__":

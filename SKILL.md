@@ -46,6 +46,8 @@ or resolving classification. Read [provider-adapters.md](references/provider-ada
 using Google, Microsoft, Slack, Teams, Granola, Jira, or Confluence sources.
 Read [gmail-delivery.md](references/gmail-delivery.md) when enabling or troubleshooting Daily Plan
 email delivery.
+Read [crm-handler-contract.md](references/crm-handler-contract.md) when an existing CRM is connected
+through a delegated handler skill.
 
 ## Gather and route
 
@@ -66,6 +68,9 @@ email delivery.
 5. If routing returns any unclassified items, pause. Show the complete list and ask the user to
    assign, exclude, or ignore every item. Do not build the consolidated proposal until the list is
    resolved.
+6. For delegated CRM review, prepare the scoped request with
+   `scripts/crm_review_contract.py`, invoke the configured handler skill in its incremental daily
+   mode, and validate its proposal. Never pass personal, excluded, or unclassified evidence.
 
 ## Build the close
 
@@ -132,9 +137,13 @@ Stop when the Sent check is unavailable or the provider outcome is ambiguous. A 
 key requires inclusion in a new consolidated proposal. Never change the subject merely to bypass
 duplicate protection.
 
-When CRM is enabled, read [crm-google-sheet.md](references/crm-google-sheet.md). Keep mail-derived
-CRM changes proposal-only. Generate local workbook/CSV output unless a live Sheets connector and
-the approved profile both allow the exact write.
+When CRM is enabled, read [crm-google-sheet.md](references/crm-google-sheet.md). In portable mode,
+generate local workbook/CSV output unless live access and the approved profile allow the exact
+write. In delegated mode, follow [crm-handler-contract.md](references/crm-handler-contract.md).
+Show exact old/new cells, confidence, inference labels, and derived tasks in the consolidated
+proposal. Re-read affected rows before writing, verify approved cells afterward, and keep the
+handler's weekly Jira rollover disabled during a daily close. Record compact CRM audit state; do
+not let a CRM coverage gap block unrelated close artifacts.
 
 ## Guardrails
 

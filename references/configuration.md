@@ -73,6 +73,14 @@ failure in close state, but never OAuth data or Gmail identifiers. The determini
 includes the profile, target date, sender, recipients, subject, body, attachments, and mode; any
 change requires a new consolidated close approval.
 
+CRM supports two modes. `portable_workbook` retains the generated Accounts/Contacts/Interactions/
+FollowUps/Lists workbook. `delegated_handler` connects an existing CRM through `handler_skill` and
+explicit `scope_ids`; configure `review_mode=incremental_daily`, first-run lookback, overlap hours,
+new-row policy, minimum confidence, live-write permission, and `roll_weekly_jira=false`. Enable
+`permissions.crm_writes_enabled` only when exact approved live writes are allowed. Keep private CRM
+URLs and organization ids in private profile or handler configuration. Completed review watermarks
+and deterministic change ids belong in close state, not full provider content or sheet snapshots.
+
 ## Migration and readiness
 
 Preview schema-v1 migration before writing. Map old topic exclusions to global exclusions, translate

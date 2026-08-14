@@ -414,6 +414,74 @@ def validate_profile(profile: dict, strict_paths: bool = False) -> tuple[list[st
                 ):
                     errors.append(f"{label}.include_extensions must be an array of non-empty strings")
 
+    crm = modules.get("crm-google-sheet") or {}
+    if crm.get("enabled"):
+        crm_mode = crm.get("mode", "portable_workbook")
+        if crm_mode not in {"portable_workbook", "delegated_handler"}:
+            errors.append(
+                "modules.crm-google-sheet.mode must be portable_workbook or delegated_handler"
+            )
+        if not isinstance(crm.get("allow_live_sheet_writes", False), bool):
+            errors.append("modules.crm-google-sheet.allow_live_sheet_writes must be a boolean")
+        if crm_mode == "portable_workbook":
+            if not _nonempty_string(crm.get("workbook_path")):
+                errors.append("modules.crm-google-sheet.workbook_path must be a non-empty string")
+            if not _nonempty_string(crm.get("proposal_output_dir")):
+                errors.append(
+                    "modules.crm-google-sheet.proposal_output_dir must be a non-empty string"
+                )
+        elif crm_mode == "delegated_handler":
+            scope_ids = crm.get("scope_ids")
+            if not isinstance(scope_ids, list) or not scope_ids:
+                errors.append("modules.crm-google-sheet.scope_ids must be a non-empty array")
+            elif any(not _nonempty_string(scope_id) for scope_id in scope_ids):
+                errors.append(
+                    "modules.crm-google-sheet.scope_ids must contain non-empty strings"
+                )
+            else:
+                unknown_scopes = sorted(set(scope_ids) - seen)
+                if unknown_scopes:
+                    errors.append(
+                        "modules.crm-google-sheet.scope_ids contains unknown scopes: "
+                        + ", ".join(unknown_scopes)
+                    )
+            if not _nonempty_string(crm.get("handler_skill")):
+                errors.append("modules.crm-google-sheet.handler_skill must be a non-empty string")
+            if "handler_path" in crm and not _nonempty_string(crm.get("handler_path")):
+                errors.append("modules.crm-google-sheet.handler_path must be a non-empty string")
+            if crm.get("review_mode") != "incremental_daily":
+                errors.append(
+                    "modules.crm-google-sheet.review_mode must be incremental_daily"
+                )
+            first_days = crm.get("first_run_lookback_days", 14)
+            if not isinstance(first_days, int) or not 1 <= first_days <= 365:
+                errors.append(
+                    "modules.crm-google-sheet.first_run_lookback_days must be an integer from 1 to 365"
+                )
+            overlap_hours = crm.get("overlap_hours", 24)
+            if not isinstance(overlap_hours, int) or not 0 <= overlap_hours <= 168:
+                errors.append(
+                    "modules.crm-google-sheet.overlap_hours must be an integer from 0 to 168"
+                )
+            if not isinstance(crm.get("allow_new_rows", False), bool):
+                errors.append("modules.crm-google-sheet.allow_new_rows must be a boolean")
+            if crm.get("minimum_confidence", "high") not in {"medium", "high"}:
+                errors.append(
+                    "modules.crm-google-sheet.minimum_confidence must be medium or high"
+                )
+            if not isinstance(crm.get("roll_weekly_jira", False), bool):
+                errors.append("modules.crm-google-sheet.roll_weekly_jira must be a boolean")
+            elif crm.get("roll_weekly_jira", False):
+                errors.append(
+                    "modules.crm-google-sheet.roll_weekly_jira must be false for incremental_daily"
+                )
+            if crm.get("allow_live_sheet_writes", False) and not permissions.get(
+                "crm_writes_enabled", False
+            ):
+                errors.append(
+                    "permissions.crm_writes_enabled must be true when delegated CRM live writes are enabled"
+                )
+
     email_delivery = modules.get("email-delivery") or {}
     if email_delivery.get("enabled"):
         if email_delivery.get("provider") != "gmail":
@@ -711,6 +779,7 @@ def migrate_v1_profile(legacy: dict, profile_id: str | None = None, workspace_ro
     }
     crm_module = migrated["modules"].get("crm-google-sheet")
     if crm_module:
+        crm_module.setdefault("mode", "portable_workbook")
         legacy_crm = legacy.get("crm") or {}
         crm_module.setdefault(
             "workbook_path",

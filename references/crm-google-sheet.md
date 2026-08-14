@@ -5,6 +5,9 @@ from Gmail or Outlook, update CRM rows, or include CRM follow-ups in the close-o
 
 ## Sheets
 
+Set `mode` to `portable_workbook` for the workbook described below. Existing profiles without a
+mode retain this behavior.
+
 Create a Google-Sheets-compatible workbook with these tabs:
 
 - `Accounts`
@@ -98,3 +101,13 @@ For v1, create a local `.xlsx` or CSV seed first. Live Google Sheets writes requ
 Google Drive/Sheets connector or a user-provided integration route and explicit approval. If the
 connector is unavailable, deliver the local workbook/proposal and state that native Sheets import is
 blocked.
+
+## Existing CRM handler
+
+Set `mode` to `delegated_handler` when another installed skill owns an existing CRM's schema,
+matching rules, and provider-specific write path. Bind it to explicit scopes and keep organization-
+specific URLs, account ids, and controlled values in private profile or handler configuration.
+
+Use [crm-handler-contract.md](crm-handler-contract.md) for the deterministic request/proposal
+interface, incremental windows, inference rules, consolidated approval, live-write verification,
+and state watermark behavior.

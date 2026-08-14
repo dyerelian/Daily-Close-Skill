@@ -83,6 +83,35 @@ def takeaways(lines: list[str], payload: dict, scopes: dict[str, str]) -> None:
         lines.append("")
 
 
+def crm_review_summary(lines: list[str], payload: dict, scopes: dict[str, str]) -> None:
+    review = payload.get("crm_review") or {}
+    if not review:
+        return
+    lines.extend(["## CRM Review", ""])
+    status = str(review.get("status") or "unknown").replace("_", " ").title()
+    lines.append(f"- Status: {status}")
+    handler = str(review.get("handler_skill") or "").strip()
+    if handler:
+        lines.append(f"- Handler: {handler}")
+    window = review.get("window") or {}
+    if window.get("start") and window.get("end"):
+        lines.append(f"- Review window: {window['start']} through {window['end']}")
+    counts = review.get("counts") or {}
+    if counts:
+        rendered_counts = ", ".join(
+            f"{key.replace('_', ' ')} {value}" for key, value in sorted(counts.items())
+        )
+        lines.append(f"- Changes: {rendered_counts}")
+    lines.append("")
+    section(lines, "CRM updates", review.get("summary_items"), scopes)
+    section(lines, "CRM review flags", review.get("review_flags"), scopes)
+    gaps = review.get("gaps") or []
+    if gaps:
+        lines.extend(["### CRM coverage gaps", ""])
+        lines.extend(f"- {str(gap)}" for gap in gaps)
+        lines.append("")
+
+
 def plan_reflections(lines: list[str], payload: dict, scopes: dict[str, str]) -> None:
     value = payload.get("takeaways") or {}
     well = value.get("well") or []
@@ -123,6 +152,7 @@ def eod_markdown(payload: dict, scopes: dict[str, str]) -> str:
     close_date = payload.get("date") or date.today().isoformat()
     lines = [f"# End-of-Day Close — {close_date}", ""]
     takeaways(lines, payload, scopes)
+    crm_review_summary(lines, payload, scopes)
     sections = payload.get("sections") or {}
     for key, heading in (
         ("accomplished", "Accomplished"),
