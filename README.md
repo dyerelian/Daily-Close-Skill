@@ -16,6 +16,8 @@ unclassified items, and asks for approval before local or external writes.
   one-close-approval Gmail delivery of the finalized plan with durable, duplicate-safe retries.
 - Portable CRM workbooks or scope-bound incremental CRM review through a configured handler skill,
   with deterministic proposals and verified writes under the consolidated close approval.
+- Configurable action ownership across Jira, a live GTD Google Sheet, and CRM: one primary action,
+  linked secondary records, stable ids, duplicate-safe retries, and archive-before-clear lifecycle.
 - Cross-platform installation, onboarding, migration, routing, and validation scripts.
 
 ## Quick start: tell your LLM
@@ -38,6 +40,10 @@ and start setup; the user should not need to clone the repository or run Python 
 > narrowest available Gmail send-action permission). If CRM review is requested, ask whether to
 > create a portable workbook or use an existing handler skill, which scopes it may receive, the
 > first-run/overlap window, inference confidence, new-row policy, and live-write permission.
+> Also ask which system should own team work, personal next actions, waiting-fors, and CRM-only
+> record updates. If a GTD Google Sheet is used, collect its URL/id, scope-to-Area values, project
+> tabs, Next Actions, Waiting Fors, Inbox, and Archive tabs. If Jira writes are used, collect the
+> scope-bound project, issue type, assignee, lifecycle operations, and narrow write permission.
 
 For Codex agents, the verified native installer arguments are:
 
@@ -127,6 +133,11 @@ scope-filtered incremental request, validates deterministic cell-level changes f
 and includes them in the consolidated proposal. The handler re-reads affected rows before approved
 writes and verifies them afterward; its standalone weekly Jira rollover remains disabled during a
 daily close. See `references/crm-handler-contract.md`.
+
+When action routing is configured, each executable item has one primary home. Team, delegated,
+multi-step, and acceptance-criteria work normally routes to Jira; personal actions and waiting-fors
+route to GTD. CRM receives a linked record when relevant and may be primary only for non-executable
+record updates. See `references/action-routing.md` and `references/gtd-google-sheet.md`.
 
 When configured, the finalized Daily Plan email is prepared only after DOCX render verification.
 The agent shows its exact delivery details in the close proposal and records that delivery key as

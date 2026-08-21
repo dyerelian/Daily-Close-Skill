@@ -312,6 +312,9 @@ def validate_profile(profile: dict, strict_paths: bool = False) -> tuple[list[st
         permissions.get("email_delivery_enabled"), bool
     ):
         errors.append("permissions.email_delivery_enabled must be a boolean")
+    for key in ("gtd_writes_enabled", "jira_writes_enabled"):
+        if key in permissions and not isinstance(permissions.get(key), bool):
+            errors.append(f"permissions.{key} must be a boolean")
 
     enabled = profile.get("enabled_modules")
     modules = profile.get("modules")
@@ -368,6 +371,127 @@ def validate_profile(profile: dict, strict_paths: bool = False) -> tuple[list[st
                 limit = query.get("limit", 50)
                 if not isinstance(limit, int) or not 1 <= limit <= 100:
                     errors.append(f"{label}.limit must be an integer from 1 to 100")
+        jira_writes = jira.get("writes") or {}
+        if jira_writes.get("enabled"):
+            if not permissions.get("jira_writes_enabled", False):
+                errors.append(
+                    "permissions.jira_writes_enabled must be true when Jira lifecycle writes are enabled"
+                )
+            if jira_writes.get("duplicate_check") is not True:
+                errors.append("modules.jira-sweep.writes.duplicate_check must be true")
+            allowed_operations = jira_writes.get("allowed_operations")
+            supported_operations = {"create", "update", "comment", "transition"}
+            if (
+                not isinstance(allowed_operations, list)
+                or not allowed_operations
+                or any(operation not in supported_operations for operation in allowed_operations)
+            ):
+                errors.append(
+                    "modules.jira-sweep.writes.allowed_operations must contain supported Jira operations"
+                )
+            write_scopes = jira_writes.get("scope_ids")
+            if not isinstance(write_scopes, list) or not write_scopes:
+                errors.append("modules.jira-sweep.writes.scope_ids must be a non-empty array")
+                write_scopes = []
+            unknown_write_scopes = sorted(set(write_scopes) - seen)
+            if unknown_write_scopes:
+                errors.append(
+                    "modules.jira-sweep.writes.scope_ids contains unknown scopes: "
+                    + ", ".join(unknown_write_scopes)
+                )
+            projects = jira_writes.get("projects")
+            if not isinstance(projects, dict):
+                errors.append("modules.jira-sweep.writes.projects must be an object")
+                projects = {}
+            for scope_id in write_scopes:
+                project = projects.get(scope_id) or {}
+                if not _nonempty_string(project.get("project_key")):
+                    errors.append(
+                        f"modules.jira-sweep.writes.projects.{scope_id}.project_key must be a non-empty string"
+                    )
+                if not _nonempty_string(project.get("issue_type")):
+                    errors.append(
+                        f"modules.jira-sweep.writes.projects.{scope_id}.issue_type must be a non-empty string"
+                    )
+
+    action_routing = modules.get("action-routing") or {}
+    if action_routing.get("enabled"):
+        if action_routing.get("overlap_policy") != "primary_with_links":
+            errors.append("modules.action-routing.overlap_policy must be primary_with_links")
+        if action_routing.get("unready_policy") != "pause_and_ask":
+            errors.append("modules.action-routing.unready_policy must be pause_and_ask")
+        destinations = action_routing.get("destinations")
+        if not isinstance(destinations, dict) or not destinations:
+            errors.append("modules.action-routing.destinations must be a non-empty object")
+        else:
+            unknown_destinations = sorted(set(destinations) - {"gtd", "jira", "crm"})
+            if unknown_destinations:
+                errors.append(
+                    "modules.action-routing.destinations has unsupported keys: "
+                    + ", ".join(unknown_destinations)
+                )
+            for destination, module_id in destinations.items():
+                if not _nonempty_string(module_id):
+                    errors.append(
+                        f"modules.action-routing.destinations.{destination} must name a module"
+                    )
+                elif not (modules.get(module_id) or {}).get("enabled"):
+                    errors.append(
+                        f"modules.action-routing destination {destination} references a disabled module: {module_id}"
+                    )
+        rules = action_routing.get("rules") or {}
+        if not isinstance(rules, dict):
+            errors.append("modules.action-routing.rules must be an object")
+        else:
+            allowed_rule_destinations = set(destinations or {}) | {"drop"}
+            for action_kind, destination in rules.items():
+                if not _nonempty_string(action_kind) or destination not in allowed_rule_destinations:
+                    errors.append(
+                        f"modules.action-routing.rules.{action_kind} must reference a configured destination or drop"
+                    )
+
+    gtd = modules.get("gtd-google-sheet") or {}
+    if gtd.get("enabled"):
+        if not isinstance(gtd.get("connector_configured"), bool):
+            errors.append("modules.gtd-google-sheet.connector_configured must be a boolean")
+        if not _nonempty_string(gtd.get("spreadsheet_id")) and not _nonempty_string(
+            gtd.get("spreadsheet_url")
+        ):
+            errors.append("modules.gtd-google-sheet requires spreadsheet_id or spreadsheet_url")
+        gtd_scopes = gtd.get("scope_ids")
+        if not isinstance(gtd_scopes, list) or not gtd_scopes:
+            errors.append("modules.gtd-google-sheet.scope_ids must be a non-empty array")
+            gtd_scopes = []
+        unknown_gtd_scopes = sorted(set(gtd_scopes) - seen)
+        if unknown_gtd_scopes:
+            errors.append(
+                "modules.gtd-google-sheet.scope_ids contains unknown scopes: "
+                + ", ".join(unknown_gtd_scopes)
+            )
+        area_values = gtd.get("area_values")
+        if not isinstance(area_values, dict):
+            errors.append("modules.gtd-google-sheet.area_values must be an object")
+            area_values = {}
+        for scope_id in gtd_scopes:
+            if not _nonempty_string(area_values.get(scope_id)):
+                errors.append(
+                    f"modules.gtd-google-sheet.area_values.{scope_id} must be a non-empty string"
+                )
+        tab_map = gtd.get("tab_map")
+        if not isinstance(tab_map, dict):
+            errors.append("modules.gtd-google-sheet.tab_map must be an object")
+            tab_map = {}
+        for key in ("next_actions", "waiting_fors", "inbox", "archive"):
+            if not _nonempty_string(tab_map.get(key)):
+                errors.append(f"modules.gtd-google-sheet.tab_map.{key} must be a non-empty string")
+        if gtd.get("archive_before_clear") is not True:
+            errors.append("modules.gtd-google-sheet.archive_before_clear must be true")
+        if not isinstance(gtd.get("allow_writes", False), bool):
+            errors.append("modules.gtd-google-sheet.allow_writes must be a boolean")
+        elif gtd.get("allow_writes") and not permissions.get("gtd_writes_enabled", False):
+            errors.append(
+                "permissions.gtd_writes_enabled must be true when GTD live writes are enabled"
+            )
 
     local_files = modules.get("local-files") or {}
     if local_files.get("enabled"):
@@ -756,6 +880,8 @@ def migrate_v1_profile(legacy: dict, profile_id: str | None = None, workspace_ro
             "external_writes_enabled": bool(write_mode.get("external_writes_enabled")),
             "local_artifact_writes_enabled": document_enabled,
             "jira_ticket_approval_required": True,
+            "jira_writes_enabled": False,
+            "gtd_writes_enabled": False,
             "crm_writes_enabled": bool(write_mode.get("crm_writes_enabled")),
             "email_delivery_enabled": False,
         },

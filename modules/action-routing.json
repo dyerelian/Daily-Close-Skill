@@ -1,0 +1,40 @@
+{
+  "id": "action-routing",
+  "display_name": "Action Destination Routing",
+  "description": "Assign each approved action to one primary system and represent overlaps as linked secondary records.",
+  "required_connectors": [],
+  "read_sources": [],
+  "write_targets": [],
+  "config_schema": {
+    "type": "object",
+    "required": ["enabled", "overlap_policy", "unready_policy", "destinations"],
+    "properties": {
+      "enabled": {"type": "boolean"},
+      "overlap_policy": {"const": "primary_with_links"},
+      "unready_policy": {"const": "pause_and_ask"},
+      "destinations": {"type": "object"},
+      "rules": {"type": "object"}
+    }
+  },
+  "onboarding": {
+    "question": "Which system should own each kind of action, and how should overlaps be linked?",
+    "default_for_profiles": [],
+    "setup_questions": [
+      "Which configured systems may be primary destinations: GTD, Jira, or CRM?",
+      "Should team, delegated, multi-step, or acceptance-criteria work route to Jira?",
+      "Should personal next actions and waiting-fors route to GTD?",
+      "Should CRM receive linked records instead of duplicate executable actions?"
+    ],
+    "connector_probes": [],
+    "required_artifacts": [],
+    "optional_artifacts": [],
+    "config_keys": [
+      "modules.action-routing.overlap_policy",
+      "modules.action-routing.unready_policy",
+      "modules.action-routing.destinations",
+      "modules.action-routing.rules"
+    ]
+  },
+  "enabled_by_default": false,
+  "proposal_output_type": "action_destination_proposal"
+}
