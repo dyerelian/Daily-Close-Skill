@@ -105,7 +105,7 @@ class DailyPlanDocxTests(unittest.TestCase):
                 numbering = archive.read("word/numbering.xml").decode("utf-8")
                 self.assertIn('w:numFmt w:val="decimal"', numbering)
                 styles = archive.read("word/styles.xml").decode("utf-8")
-                self.assertIn('w:line="300"', styles)
+                self.assertIn('w:line="280"', styles)
                 self.assertIn('w:color w:val="2E74B5"', styles)
 
     def test_page_numbers_can_be_disabled(self) -> None:
