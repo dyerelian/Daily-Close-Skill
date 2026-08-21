@@ -140,6 +140,52 @@ class OnboardingTests(unittest.TestCase):
         questions = " ".join(question_catalog()["core_questions"])
         self.assertIn("handler skill", questions)
 
+    def test_action_destinations_and_gtd_sheet_are_onboarded(self) -> None:
+        answers = copy.deepcopy(load_json(ROOT / "config" / "onboarding.answers.example.json"))
+        scope_id = answers["scopes"][0]["id"]
+        answers["permissions"].update({
+            "gtd_writes_enabled": True,
+            "jira_writes_enabled": True,
+        })
+        optional = answers["systems"]["optional_modules"]
+        optional["gtd-google-sheet"].update({
+            "enabled": True,
+            "connector_configured": True,
+            "allow_writes": True,
+        })
+        optional["jira-sweep"] = {
+            "enabled": True,
+            "connector": "atlassian",
+            "connector_configured": True,
+            "queries": [{
+                "name": "Assigned open work",
+                "jql": "assignee = currentUser() AND statusCategory != Done",
+                "scope_id": scope_id,
+                "limit": 50,
+            }],
+            "writes": {
+                "enabled": True,
+                "scope_ids": [scope_id],
+                "projects": {scope_id: {"project_key": "EX", "issue_type": "Task"}},
+                "allowed_operations": ["create", "update", "comment", "transition"],
+                "duplicate_check": True,
+            },
+        }
+        optional["action-routing"] = {
+            "enabled": True,
+            "overlap_policy": "primary_with_links",
+            "unready_policy": "pause_and_ask",
+            "destinations": {"gtd": "gtd-google-sheet", "jira": "jira-sweep"},
+        }
+        profile = build_profile(answers)
+        errors, _ = validate_profile(profile)
+        self.assertEqual(errors, [])
+        self.assertIn("action-routing", profile["enabled_modules"])
+        self.assertIn("gtd-google-sheet", profile["enabled_modules"])
+        questions = " ".join(question_catalog()["core_questions"])
+        self.assertIn("scope-to-Area", questions)
+        self.assertIn("one primary action", questions)
+
 
 if __name__ == "__main__":
     unittest.main()

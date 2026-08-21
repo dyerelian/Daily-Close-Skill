@@ -160,6 +160,61 @@ def collect_interactive_answers() -> dict:
                 "limit": 50,
             }],
         }
+        if yes_no("Use Jira as an approved action destination for team or multi-step work?", False):
+            optional["jira-sweep"]["writes"] = {
+                "enabled": True,
+                "scope_ids": [jira_scope],
+                "projects": {
+                    jira_scope: {
+                        "project_key": ask("Jira project key"),
+                        "issue_type": ask("Default Jira issue type", "Task"),
+                        "assignee_account_id": ask("Default Jira assignee account id (optional)") or None,
+                    }
+                },
+                "allowed_operations": ["create", "update", "comment", "transition"],
+                "duplicate_check": True,
+            }
+            answers["permissions"]["jira_writes_enabled"] = True
+
+    if yes_no("Connect an existing Google Sheet as the GTD action system?", False):
+        sheet_ref = ask("Google Sheet URL or spreadsheet id")
+        selected_scopes = [
+            value.strip()
+            for value in ask("GTD scope ids (comma-separated)", ",".join(scope_ids)).split(",")
+            if value.strip()
+        ]
+        area_values = {
+            scope_id: ask(f"GTD Area value for {scope_id}", scope_id)
+            for scope_id in selected_scopes
+        }
+        allow_gtd_writes = yes_no(
+            "Allow exact GTD row writes after the consolidated close approval?", False
+        )
+        optional["gtd-google-sheet"] = {
+            "enabled": True,
+            "connector": "google-drive",
+            "connector_configured": yes_no("Is the Google Drive connector authenticated?", False),
+            **(
+                {"spreadsheet_url": sheet_ref}
+                if sheet_ref.startswith("http")
+                else {"spreadsheet_id": sheet_ref}
+            ),
+            "scope_ids": selected_scopes,
+            "area_values": area_values,
+            "tab_map": {
+                "next_actions": ask("Next Actions tab", "Next Actions"),
+                "waiting_fors": ask("Waiting Fors tab", "Waiting Fors"),
+                "inbox": ask("Inbox tab", "Inbox"),
+                "archive": ask("Archive tab", "Action Archive"),
+            },
+            "project_tabs": {
+                scope_id: ask(f"Projects tab for {scope_id} (optional)") or None
+                for scope_id in selected_scopes
+            },
+            "archive_before_clear": True,
+            "allow_writes": allow_gtd_writes,
+        }
+        answers["permissions"]["gtd_writes_enabled"] = allow_gtd_writes
     if yes_no("Enable a scoped local-folder sweep?", False):
         roots = []
         while True:
@@ -221,6 +276,51 @@ def collect_interactive_answers() -> dict:
                 "allow_live_sheet_writes": allow_live_writes,
             }
         answers["permissions"]["crm_writes_enabled"] = allow_live_writes
+
+    action_destinations = {}
+    jira_config = optional.get("jira-sweep") or {}
+    if (jira_config.get("writes") or {}).get("enabled"):
+        action_destinations["jira"] = "jira-sweep"
+    gtd_config = optional.get("gtd-google-sheet") or {}
+    if gtd_config.get("enabled") and gtd_config.get("allow_writes"):
+        action_destinations["gtd"] = "gtd-google-sheet"
+    crm_config = optional.get("crm-google-sheet") or {}
+    if crm_config.get("enabled") and crm_config.get("allow_live_sheet_writes"):
+        action_destinations["crm"] = "crm-google-sheet"
+    if action_destinations and yes_no(
+        "Route every action to one primary system and use linked records for overlaps?", True
+    ):
+        choices = ", ".join([*action_destinations, "drop"])
+        team_destination = ask(
+            f"Primary destination for team, delegated, multi-step work ({choices})",
+            "jira" if "jira" in action_destinations else "gtd",
+        ).lower()
+        personal_destination = ask(
+            f"Primary destination for personal and small next actions ({choices})",
+            "gtd" if "gtd" in action_destinations else team_destination,
+        ).lower()
+        waiting_destination = ask(
+            f"Primary destination for waiting-fors ({choices})", personal_destination
+        ).lower()
+        crm_record_destination = ask(
+            f"Primary destination for non-executable CRM record updates ({choices})",
+            "crm" if "crm" in action_destinations else "drop",
+        ).lower()
+        optional["action-routing"] = {
+            "enabled": True,
+            "overlap_policy": "primary_with_links",
+            "unready_policy": "pause_and_ask",
+            "destinations": action_destinations,
+            "rules": {
+                "team_project_work": team_destination,
+                "delegated_work": team_destination,
+                "next_action": personal_destination,
+                "personal_next_action": personal_destination,
+                "follow_up": personal_destination,
+                "waiting_for": waiting_destination,
+                "crm_record_update": crm_record_destination,
+            },
+        }
 
     excluded = [value.strip() for value in ask("Globally excluded topics (comma-separated)").split(",") if value.strip()]
     answers["routing"]["global_exclusions"] = [
@@ -330,6 +430,8 @@ def build_profile(answers: dict) -> dict:
         "granola-meetings",
         "slack-sweep",
         "jira-sweep",
+        "gtd-google-sheet",
+        "action-routing",
         "local-files",
         "teams-local-cache",
         "source-of-truth",
@@ -343,6 +445,28 @@ def build_profile(answers: dict) -> dict:
                 value.setdefault("connector", "atlassian")
                 value.setdefault("connector_configured", False)
                 value.setdefault("queries", [])
+                if (value.get("writes") or {}).get("enabled"):
+                    value["writes"].setdefault(
+                        "allowed_operations", ["create", "update", "comment", "transition"]
+                    )
+                    value["writes"].setdefault("duplicate_check", True)
+            if module_id == "gtd-google-sheet":
+                value.setdefault("connector", "google-drive")
+                value.setdefault("connector_configured", False)
+                value.setdefault("tab_map", {
+                    "next_actions": "Next Actions",
+                    "waiting_fors": "Waiting Fors",
+                    "inbox": "Inbox",
+                    "archive": "Action Archive",
+                })
+                value.setdefault("area_values", {})
+                value.setdefault("archive_before_clear", True)
+                value.setdefault("allow_writes", False)
+            if module_id == "action-routing":
+                value.setdefault("overlap_policy", "primary_with_links")
+                value.setdefault("unready_policy", "pause_and_ask")
+                value.setdefault("destinations", {})
+                value.setdefault("rules", {})
             if module_id == "local-files":
                 value.setdefault("roots", [])
                 value.setdefault("max_files", 200)
@@ -432,6 +556,8 @@ def build_profile(answers: dict) -> dict:
             "external_writes_enabled": bool(permissions.get("external_writes_enabled")),
             "local_artifact_writes_enabled": bool(permissions.get("local_artifact_writes_enabled")),
             "jira_ticket_approval_required": True,
+            "jira_writes_enabled": bool(permissions.get("jira_writes_enabled")),
+            "gtd_writes_enabled": bool(permissions.get("gtd_writes_enabled")),
             "crm_writes_enabled": bool(permissions.get("crm_writes_enabled")),
             "email_delivery_enabled": bool(permissions.get("email_delivery_enabled")),
         },
@@ -449,11 +575,16 @@ def connector_gaps(profile: dict) -> list[str]:
                 gaps.append(f"{module_id}: Outlook COM is Windows-only; configure a connector")
                 continue
             if not provider.get("configured"):
-                gaps.append(f"{module_id}: {provider.get('provider')} connector is not marked configured")
+                account = provider.get("account")
+                identity = f" for {account}" if account else ""
+                gaps.append(
+                    f"{module_id}: {provider.get('provider')} connector{identity} is not marked configured"
+                )
     optional = profile.get("modules") or {}
     for module_id, connector in (
         ("slack-sweep", "slack"),
         ("jira-sweep", "atlassian/Jira"),
+        ("gtd-google-sheet", "Google Drive/Sheets"),
         ("granola-meetings", "granola"),
         ("source-of-truth", "atlassian"),
         ("email-delivery", "Gmail"),
@@ -576,6 +707,11 @@ def question_catalog() -> dict:
             "What workspace root should contain Plans, Agendas, Tasks, Logs, and State?",
             "Which Google and Microsoft mail/calendar providers are connected?",
             "Which optional meeting, chat, CRM, Jira, and source-of-truth modules are needed?",
+            "Which durable systems may own actions: Jira, a GTD Google Sheet, CRM records, or a configured subset?",
+            "For overlapping work, should one primary action own execution while CRM or other systems hold linked secondary records?",
+            "If a GTD Google Sheet is used, what are its URL or id, scope-to-Area values, project tabs, Next Actions tab, Waiting Fors tab, Inbox tab, and Archive tab?",
+            "Should completed GTD rows always be archived before they are cleared from active tabs?",
+            "May Jira create, update, comment, and transition approved work, and which project, issue type, assignee, and scope apply?",
             "Should CRM use a portable workbook or delegate an incremental review to a configured handler skill, for which scopes and confidence threshold?",
             "Which exact local folders may be read, and which scope owns each folder?",
             "Which local and external writes are allowed after approval?",

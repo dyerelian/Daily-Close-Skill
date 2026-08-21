@@ -28,10 +28,22 @@ without an explicit user request.
 - `routing`: `pause_and_ask` unclassified policy and global exclusions.
 - `artifacts`: workspace root, optional path overrides, canonical formats, and exports.
 - `features`: Daily Takeaways, exact reflection requirements, recurring recaps, and DOCX page numbers.
-- `privacy` and `permissions`: data retention and write gates, including the narrow email-delivery gate.
+- `privacy` and `permissions`: data retention and narrow write gates, including separate GTD,
+  Jira, CRM, and email-delivery permissions.
 - `enabled_modules` and `modules`: provider and capability configuration.
 
 For `jira-sweep`, configure one or more objects containing `name`, `jql`, `scope_id`, and `limit`.
+Optional lifecycle writes live under `jira-sweep.writes`: enable them only with scope-bound project
+keys, issue types, allowed operations, mandatory duplicate checks, and
+`permissions.jira_writes_enabled=true`.
+
+`action-routing` declares the configured primary destinations, per-action-kind routing rules, and
+fixes the overlap policy to `primary_with_links`. `gtd-google-sheet` stores the native sheet id or URL, connector readiness,
+scope ids, scope-to-Area values, active/archive tab names, optional project tabs, and the required
+archive-before-clear rule. Enable its `allow_writes` only with
+`permissions.gtd_writes_enabled=true`. See [action-routing.md](action-routing.md) and
+[gtd-google-sheet.md](gtd-google-sheet.md).
+
 For `local-files`, configure approved roots containing `path`, `scope_id`, `recursive`,
 `lookback_days`, and optional `include_extensions`. Bound large-drive traversal with `max_files`,
 `max_scanned_files`, `max_scanned_directories`, and `max_scan_seconds`. Keep each query and root
