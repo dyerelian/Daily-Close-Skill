@@ -163,6 +163,25 @@ class EmailDeliveryTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 prepare_email(payload, value)
 
+    def test_legacy_top_level_priorities_and_outreach_are_in_summary_body(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            plans = workspace / "Plans"
+            plans.mkdir()
+            (plans / "Daily Plan 2026-08-10.docx").write_bytes(b"docx")
+            value = self.configured_profile(workspace)
+            payload = {
+                "date": "2026-08-09",
+                "target_date": "2026-08-10",
+                "summary": "Focused day.",
+                "priorities": ["First priority"],
+                "people_outreach": ["Reach out to Ramya", "Reach out to Srikanth"],
+            }
+            envelope = prepare_email(payload, value)
+            self.assertIn("First priority", envelope["body"])
+            self.assertIn("Reach out to Ramya", envelope["body"])
+            self.assertIn("Reach out to Srikanth", envelope["body"])
+
 
 if __name__ == "__main__":
     unittest.main()

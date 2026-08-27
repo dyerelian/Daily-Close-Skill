@@ -17,6 +17,7 @@ from close_day_config import (
     resolved_artifact_paths,
     validate_profile,
 )
+from close_payload import normalize_payload
 
 
 def clean_text(value: Any) -> str:
@@ -26,6 +27,7 @@ def clean_text(value: Any) -> str:
 
 
 def concise_body(payload: dict, target_date: str) -> str:
+    payload = normalize_payload(payload)
     lines = [f"Here is your Daily Success Plan for {target_date}."]
     summary = clean_text(payload.get("summary"))
     if summary:
@@ -38,6 +40,14 @@ def concise_body(payload: dict, target_date: str) -> str:
     if priorities:
         lines.extend(["", "Top priorities:"])
         lines.extend(f"- {item}" for item in priorities[:3])
+    outreach = [
+        clean_text(item)
+        for item in ((payload.get("sections") or {}).get("people_outreach") or [])
+        if clean_text(item)
+    ]
+    if outreach:
+        lines.extend(["", "People outreach today:"])
+        lines.extend(f"- {item}" for item in outreach)
     lines.extend(["", "The complete Daily Plan is attached as a Word document."])
     return "\n".join(lines)
 
@@ -49,6 +59,7 @@ def prepare_email(
     allow_failed_retry: bool = False,
     sent_check_absent: bool = False,
 ) -> dict:
+    payload = normalize_payload(payload)
     errors, _ = validate_profile(profile)
     if errors:
         raise ValueError("invalid profile: " + "; ".join(errors))

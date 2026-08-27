@@ -16,10 +16,61 @@ from create_close_artifacts import (  # noqa: E402
     export_paths,
     validate_required_takeaways,
 )
+from close_payload import normalize_payload  # noqa: E402
 from propose_crm_from_mail import normalized_email_payload  # noqa: E402
 
 
 class ArtifactTests(unittest.TestCase):
+    def test_legacy_top_level_sections_are_normalized(self) -> None:
+        payload = {
+            "date": "2026-08-07",
+            "target_date": "2026-08-10",
+            "priorities": [{"text": "Restore priority rendering", "scope_id": "acme"}],
+            "tasks": [{"text": "Verify the emailed plan", "scope_id": "acme"}],
+        }
+        normalized = normalize_payload(payload)
+        self.assertEqual(normalized["sections"]["priorities"], payload["priorities"])
+        self.assertEqual(normalized["sections"]["tasks"], payload["tasks"])
+        with tempfile.TemporaryDirectory() as temporary:
+            profile = {
+                "artifacts": {
+                    "workspace_root": temporary,
+                    "path_overrides": {},
+                    "canonical": {"markdown": True, "json": True},
+                    "exports": {"docx": False, "xlsx": False},
+                },
+                "scopes": [{"id": "acme", "name": "Acme"}],
+            }
+            rendered = "\n".join(value for value in build_outputs(payload, profile).values() if isinstance(value, str))
+            self.assertIn("[Acme] Restore priority rendering", rendered)
+            self.assertIn("[Acme] Verify the emailed plan", rendered)
+
+    def test_conflicting_section_representations_fail(self) -> None:
+        with self.assertRaisesRegex(ValueError, "conflicting"):
+            normalize_payload({
+                "priorities": ["top-level"],
+                "sections": {"priorities": ["nested"]},
+            })
+
+    def test_people_outreach_flows_into_daily_plan_export(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            profile = {
+                "artifacts": {
+                    "workspace_root": temporary,
+                    "path_overrides": {},
+                    "canonical": {"markdown": True, "json": True},
+                    "exports": {"daily_plan_docx": True},
+                },
+                "features": {"docx_page_numbers": True},
+                "scopes": [],
+            }
+            payload = {
+                "date": "2026-08-27",
+                "target_date": "2026-08-28",
+                "sections": {"priorities": ["Priority"], "people_outreach": ["Reach out to A", "Reach out to B"]},
+            }
+            jobs = export_paths(payload, profile)
+            self.assertEqual(jobs["docx"][0][1]["people_outreach"], ["Reach out to A", "Reach out to B"])
     def test_normalized_mail_can_feed_crm_proposals(self) -> None:
         payload = normalized_email_payload({
             "items": [

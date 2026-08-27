@@ -116,6 +116,24 @@ class DailyPlanDocxTests(unittest.TestCase):
             with zipfile.ZipFile(output) as archive:
                 self.assertNotIn("word/footer1.xml", archive.namelist())
 
+    def test_people_outreach_is_rendered(self) -> None:
+        module = load_module()
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "plan.docx"
+            module.create_docx(
+                {
+                    "date": "2026-08-27",
+                    "daily_big_3": ["Priority"],
+                    "people_outreach": ["Reach out to Bo Rogers", "Reach out to Ramya"],
+                },
+                output,
+            )
+            with zipfile.ZipFile(output) as archive:
+                document = archive.read("word/document.xml").decode("utf-8")
+                self.assertIn("Daily Big 3", document)
+                self.assertIn("People Outreach", document)
+                self.assertIn("Reach out to Bo Rogers", document)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -58,7 +58,16 @@
       "incomplete_policy": "allow_partial"
     },
     "recurring_meeting_recap": {"enabled": true},
-    "docx_page_numbers": true
+    "docx_page_numbers": true,
+    "people_outreach": {
+      "enabled": false,
+      "daily_count": 2,
+      "schedule": "workdays_and_manual_runs",
+      "selection_policy": "round_robin",
+      "duplicate_policy": "count_entries",
+      "list_path": "~/.config/close-day/people.json",
+      "state_path": "~/.config/close-day/people-outreach-state.json"
+    }
   },
   "privacy": {
     "allow_raw_external_content": false,

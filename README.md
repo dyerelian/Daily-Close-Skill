@@ -18,6 +18,8 @@ unclassified items, and asks for approval before local or external writes.
   with deterministic proposals and verified writes under the consolidated close approval.
 - Configurable action ownership across Jira, a live GTD Google Sheet, and CRM: one primary action,
   linked secondary records, stable ids, duplicate-safe retries, and archive-before-clear lifecycle.
+- Optional private people-outreach reminders with deterministic round-robin selection and separate
+  rotation state.
 - Cross-platform installation, onboarding, migration, routing, and validation scripts.
 
 ## Quick start: tell your LLM

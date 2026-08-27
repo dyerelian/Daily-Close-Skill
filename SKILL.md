@@ -50,6 +50,7 @@ Read [crm-handler-contract.md](references/crm-handler-contract.md) when an exist
 through a delegated handler skill.
 Read [action-routing.md](references/action-routing.md) whenever `action-routing` is enabled. Read
 [gtd-google-sheet.md](references/gtd-google-sheet.md) whenever a live GTD Sheet is configured.
+Read [people-outreach.md](references/people-outreach.md) whenever `features.people_outreach` is enabled.
 
 ## Gather and route
 
@@ -91,6 +92,12 @@ When Daily Takeaways are enabled, draft concrete things done well and improvemen
 many evidence-backed items in both lists before finalization. Never invent or pad an item. Put the
 two reflection lists immediately after the Daily Plan title, before its summary.
 
+When people outreach is enabled, read the configured private people list without modifying it and
+propose the configured number of entries using its deterministic selection policy. Include the
+selected entries in the consolidated proposal and Daily Plan. Keep rotation state in the separate
+configured state file; do not create GTD, Jira, CRM, or Confluence records for reminders. Reuse a
+saved assignment for a same-date rerun.
+
 For a recurring meeting, build **Last meeting recap** within the same scope. Match provider event
 identity first, then normalized title, participants, and start time. Prefer the prior Granola note
 when enabled; fall back to the prior local agenda or state. Include summary, unresolved follow-ups
@@ -105,6 +112,7 @@ Present one consolidated proposal containing:
 - completed, carried, captured, waiting-for, and task updates with scope labels, stable action id,
   one primary destination, and any linked secondary records
 - Daily Takeaways and next-workday priorities
+- selected people-outreach reminders, when enabled
 - meeting recaps and agendas
 - CRM and source-of-truth proposals
 - every local artifact or external write that would occur
@@ -128,6 +136,9 @@ python scripts/create_close_artifacts.py --input <approved-close.json> --profile
 ```
 
 After artifact approval and only when the profile permits local writes, rerun with `--approved`.
+Normalize legacy top-level section fields into canonical `sections` before rendering and reject
+conflicting duplicate representations. A configured people-outreach assignment must appear in the
+Markdown and any enabled Daily Plan DOCX before email preparation.
 The script refuses to overwrite an existing dated artifact. Generate Daily Plan DOCX, agenda DOCX,
 or XLSX task exports only when each export is enabled. Treat legacy `artifacts.exports.docx=true` as
 enabling both DOCX types unless a granular flag overrides it. Pass approved Takeaways to the Daily
@@ -173,5 +184,7 @@ before a write and verify exact cells afterward.
 - Never store OAuth credentials; connector authentication is runtime-managed.
 - Keep source evidence compact: provider, stable id, account/workspace, timestamp, title, snippet,
   participants, and link.
+- Treat the configured people list as read-only personal configuration; never persist contact dates
+  or rotation metadata back into that list.
 - Use deterministic scripts for installation, onboarding, migration, routing, validation, and
   artifact generation.

@@ -451,6 +451,7 @@ def daily_plan_body(data: dict) -> str:
         parts.append(ac.simple_paragraph(mit))
 
     bullet_block(parts, "Daily Big 3", data.get("daily_big_3"), keep_group=True)
+    bullet_block(parts, "People Outreach", data.get("people_outreach"), keep_group=True)
     nested_bullet_block(parts, "Top Action Items", data.get("top_actions"))
     bullet_block(parts, "Other Action Items", data.get("other_actions"))
     meetings_block(parts, data.get("meetings"))
