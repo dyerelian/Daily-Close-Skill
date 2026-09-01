@@ -5,19 +5,25 @@ duplicate execution across Jira, GTD, and CRM.
 
 ## Primary ownership
 
-Every actionable item gets one `close_action_id`, one `external_key`, and exactly one primary
-destination. Team, delegated, multi-step, or acceptance-criteria work normally belongs in Jira.
-Personal next actions, small follow-ups, and waiting-fors normally belong in GTD. A CRM record may
-be primary only for a non-executable record update; CRM must never be the sole home for work that
-someone still needs to perform.
+Every actionable item gets one `close_action_id`, one `external_key`, and exactly one master
+reminder. When GTD is configured as the comprehensive system, every non-excluded executable
+commitment has a GTD Next Action or Waiting For reminder. Jira remains the detailed team execution
+record and is linked from the GTD row; CRM remains a relationship record. CRM must never be the
+sole home for work that someone still needs to perform.
 
 These defaults are configurable through `modules.action-routing.rules`. Onboarding must ask for the
 primary destination of team work, personal/small actions, waiting-fors, and non-executable CRM
 updates, and each answer must name a configured destination or `drop`.
 
-When the same evidence affects more than one system, keep execution in the primary destination and
-create linked secondary records. Each secondary record must carry the primary `close_action_id` or
-the created external key. Do not create parallel GTD and Jira tasks for the same work.
+When the same evidence affects more than one system, keep one action definition in GTD and create
+linked secondary records. A Jira-linked GTD row must contain the Jira key/URL as source evidence;
+Jira holds the detailed team task, not a second independently maintained reminder. Each secondary
+record must carry the primary `close_action_id` or created external key. If a Jira record must be
+created, create and verify it before writing the dependent GTD link.
+
+Normalize work delegated to someone else as `waiting_for`, with the responsible owner and an
+intentional follow-up date. Do not store another person's commitment as Dan's executable next
+action unless Dan's action is to contact, review, approve, or otherwise advance it.
 
 ## Proposal and approval
 

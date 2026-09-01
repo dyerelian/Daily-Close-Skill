@@ -14,6 +14,7 @@ from create_close_artifacts import (  # noqa: E402
     create_task_xlsx,
     eod_markdown,
     export_paths,
+    plan_markdown,
     validate_required_takeaways,
 )
 from close_payload import normalize_payload  # noqa: E402
@@ -153,6 +154,22 @@ class ArtifactTests(unittest.TestCase):
         self.assertIn("[Acme] Updated Acme last interaction", rendered)
         self.assertIn("Slack unavailable", rendered)
 
+    def test_daily_plan_places_meeting_insights_and_gtd_link_before_priorities(self) -> None:
+        rendered = plan_markdown(
+            {
+                "target_date": "2026-09-01",
+                "summary": "Focus the day.",
+                "gtd_link": {"label": "Open full GTD list", "url": "https://example.test/gtd"},
+                "sections": {
+                    "meeting_insights": ["Vasco relationship remains active."],
+                    "priorities": ["Send the proposal"],
+                },
+            },
+            {},
+        )
+        self.assertLess(rendered.index("Meeting Insights"), rendered.index("Open full GTD list"))
+        self.assertLess(rendered.index("Open full GTD list"), rendered.index("Priorities"))
+
     def test_optional_export_jobs_are_derived_from_profile(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             profile = {
@@ -191,6 +208,12 @@ class ArtifactTests(unittest.TestCase):
                     },
                 },
                 "features": {"daily_takeaways": {"max_items": 3}},
+                "modules": {
+                    "gtd-google-sheet": {
+                        "enabled": True,
+                        "spreadsheet_url": "https://example.test/gtd",
+                    }
+                },
                 "scopes": [{"id": "acme", "name": "Acme"}],
             }
             payload = {
@@ -201,6 +224,7 @@ class ArtifactTests(unittest.TestCase):
             jobs = export_paths(payload, profile)
             self.assertEqual(len(jobs["docx"]), 1)
             self.assertEqual(jobs["docx"][0][2], "plan")
+            self.assertEqual(jobs["docx"][0][1]["gtd_link"]["url"], "https://example.test/gtd")
 
     def test_exact_reflections_block_incomplete_close(self) -> None:
         profile = {

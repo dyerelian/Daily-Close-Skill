@@ -15,8 +15,21 @@ SECTION_KEYS = (
     "priorities",
     "tasks",
     "meetings",
+    "meeting_insights",
     "people_outreach",
 )
+
+
+def configured_gtd_link(profile: dict[str, Any]) -> dict[str, str] | None:
+    module = ((profile.get("modules") or {}).get("gtd-google-sheet") or {})
+    if not module.get("enabled"):
+        return None
+    url = str(module.get("spreadsheet_url") or "").strip()
+    if not url:
+        spreadsheet_id = str(module.get("spreadsheet_id") or "").strip()
+        if spreadsheet_id:
+            url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit"
+    return {"label": "Open full GTD list", "url": url} if url else None
 
 
 def normalize_payload(payload: dict[str, Any]) -> dict[str, Any]:

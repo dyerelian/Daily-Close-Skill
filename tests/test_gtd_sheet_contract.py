@@ -27,6 +27,7 @@ def gtd_profile() -> dict:
                 "allow_writes": True,
                 "scope_ids": ["personal", "org"],
                 "area_values": {"personal": "Pers", "org": "Org"},
+                "context_values": ["@Computer", "@Calls", "@Errands", "@Anywhere"],
                 "tab_map": {
                     "next_actions": "Next Actions",
                     "waiting_fors": "Waiting Fors",
@@ -66,7 +67,29 @@ class GtdSheetContractTests(unittest.TestCase):
         }
         operations = build_gtd_operations(proposal, gtd_profile())
         self.assertEqual([operation["tab"] for operation in operations], ["Next Actions", "Waiting Fors"])
+        self.assertEqual(operations[0]["row"]["Context"], "@Anywhere")
         self.assertEqual(validate_gtd_operations(operations, gtd_profile()), [])
+
+    def test_soft_dates_become_review_dates_and_hard_dates_remain_due(self) -> None:
+        proposal = {
+            "items": [
+                {
+                    "scope_id": "personal", "title": "Review options", "action_kind": "next_action",
+                    "primary_destination": "gtd", "close_action_id": "soft", "due": "2026-09-08",
+                },
+                {
+                    "scope_id": "org", "title": "File response", "action_kind": "next_action",
+                    "primary_destination": "gtd", "close_action_id": "hard", "due": "2026-11-17",
+                    "due_is_hard": True, "context": "@Computer",
+                },
+            ]
+        }
+        operations = build_gtd_operations(proposal, gtd_profile())
+        soft, hard = (operation["row"] for operation in operations)
+        self.assertEqual(soft["Defer / Review On"], "2026-09-08")
+        self.assertIsNone(soft["Due"])
+        self.assertIsNone(hard["Defer / Review On"])
+        self.assertEqual(hard["Due"], "2026-11-17")
 
     def test_existing_action_is_updated_instead_of_appended(self) -> None:
         profile = gtd_profile()
@@ -98,14 +121,14 @@ class GtdSheetContractTests(unittest.TestCase):
         profile["permissions"]["gtd_writes_enabled"] = False
         errors = validate_gtd_operations([{
             "operation": "upsert", "tab": "Next Actions", "scope_id": "personal",
-            "close_action_id": "a1", "row": {},
+            "close_action_id": "a1", "row": {"Context": "@Anywhere"},
         }], profile)
         self.assertTrue(any("gtd_writes_enabled" in error for error in errors))
 
     def test_exact_action_approval_can_be_enforced(self) -> None:
         operation = {
             "operation": "upsert", "tab": "Next Actions", "scope_id": "personal",
-            "close_action_id": "a1", "row": {},
+            "close_action_id": "a1", "row": {"Context": "@Anywhere"},
         }
         errors = validate_gtd_operations([operation], gtd_profile(), [])
         self.assertTrue(any("exact action approval" in error for error in errors))

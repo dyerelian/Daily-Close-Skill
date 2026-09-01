@@ -24,8 +24,8 @@ EXECUTABLE_KINDS = {
     "follow_up",
 }
 DEFAULT_RULES = {
-    "team_project_work": "jira",
-    "delegated_work": "jira",
+    "team_project_work": "gtd",
+    "delegated_work": "gtd",
     "next_action": "gtd",
     "personal_next_action": "gtd",
     "waiting_for": "gtd",
@@ -85,7 +85,7 @@ def infer_primary_destination(
         or item.get("delegated")
         or item.get("acceptance_criteria")
     ):
-        preferred = active_rules.get("team_project_work", "jira")
+        preferred = active_rules.get("team_project_work", "gtd")
     else:
         preferred = active_rules.get(kind)
     if preferred in configured:
@@ -134,6 +134,24 @@ def prepare_action_proposal(items: Iterable[dict], profile: dict) -> dict:
             )
             continue
         secondary = []
+        jira_applicable = bool(
+            item.get("jira_applicable")
+            or item.get("jira_issue_key")
+            or item.get("team_work")
+            or item.get("multi_step")
+            or item.get("acceptance_criteria")
+        )
+        if jira_applicable and "jira" in configured and primary != "jira":
+            secondary.append(
+                {
+                    "destination": "jira",
+                    "relationship": "execution_record",
+                    "linked_to": action_id,
+                    "requires_write": bool(item.get("jira_requires_write")),
+                    "issue_key": item.get("jira_issue_key"),
+                    "issue_url": item.get("jira_issue_url"),
+                }
+            )
         if item.get("crm_applicable") and "crm" in configured and primary != "crm":
             secondary.append(
                 {
@@ -201,8 +219,14 @@ def validate_action_proposal(proposal: dict, profile: dict, approved_ids: Iterab
         if action_id not in approved:
             errors.append(f"{label}: exact action approval is missing")
         for link in item.get("secondary_records") or []:
-            if link.get("relationship") != "linked_record" or link.get("linked_to") != action_id:
+            if link.get("relationship") not in {"linked_record", "execution_record"} or link.get("linked_to") != action_id:
                 errors.append(f"{label}: secondary records must link to their primary action")
+            if (
+                link.get("destination") == "jira"
+                and link.get("requires_write")
+                and not permissions.get("jira_writes_enabled", False)
+            ):
+                errors.append(f"{label}: permissions.jira_writes_enabled is false")
     if proposal.get("unresolved") or proposal.get("rejected"):
         errors.append("proposal contains unresolved or rejected actions")
     return errors
@@ -216,15 +240,35 @@ def build_execution_plan(proposal: dict) -> list[dict]:
         primary_key = f"primary:{action_id}"
         if item.get("primary_destination") == "drop":
             continue
+        prerequisites = []
+        for link in item.get("secondary_records") or []:
+            if (
+                link.get("destination") == "jira"
+                and link.get("relationship") == "execution_record"
+                and link.get("requires_write")
+            ):
+                operation_key = f"record:jira:{action_id}"
+                prerequisites.append(operation_key)
+                plan.append(
+                    {
+                        "operation_key": operation_key,
+                        "destination": "jira",
+                        "close_action_id": action_id,
+                        "relationship": "execution_record",
+                    }
+                )
         plan.append(
             {
                 "operation_key": primary_key,
                 "destination": item.get("primary_destination"),
                 "close_action_id": action_id,
                 "external_key": item.get("external_key"),
+                **({"depends_on": prerequisites[0]} if prerequisites else {}),
             }
         )
         for link in item.get("secondary_records") or []:
+            if link.get("relationship") == "execution_record":
+                continue
             plan.append(
                 {
                     "operation_key": f"link:{link.get('destination')}:{action_id}",

@@ -23,6 +23,7 @@
       "spreadsheet_url": {"type": "string"},
       "scope_ids": {"type": "array"},
       "area_values": {"type": "object"},
+      "context_values": {"type": "array"},
       "tab_map": {"type": "object"},
       "project_tabs": {"type": "object"},
       "archive_before_clear": {"const": true},
@@ -35,6 +36,7 @@
     "setup_questions": [
       "What is the native Google Sheet URL or spreadsheet id?",
       "Which close-day scopes belong in the sheet, and what Area value maps to each?",
+      "Which context values should be available for Next Actions?",
       "Which tabs contain Next Actions, Waiting Fors, Inbox, Action Archive, and per-scope Projects?",
       "Does the sheet expose stable Close Action ID and source metadata columns?",
       "May approved writes upsert actions and archive completed rows before clearing them?"
@@ -50,6 +52,7 @@
       "modules.gtd-google-sheet.spreadsheet_id",
       "modules.gtd-google-sheet.scope_ids",
       "modules.gtd-google-sheet.area_values",
+      "modules.gtd-google-sheet.context_values",
       "modules.gtd-google-sheet.tab_map",
       "modules.gtd-google-sheet.archive_before_clear",
       "modules.gtd-google-sheet.allow_writes",

@@ -17,7 +17,7 @@ from close_day_config import (
     resolved_artifact_paths,
     validate_profile,
 )
-from close_payload import normalize_payload
+from close_payload import configured_gtd_link, normalize_payload
 
 
 def clean_text(value: Any) -> str:
@@ -32,6 +32,19 @@ def concise_body(payload: dict, target_date: str) -> str:
     summary = clean_text(payload.get("summary"))
     if summary:
         lines.extend(["", summary])
+    meeting_insights = [
+        clean_text(item)
+        for item in ((payload.get("sections") or {}).get("meeting_insights") or [])
+        if clean_text(item)
+    ]
+    if meeting_insights:
+        lines.extend(["", "Meeting insights:"])
+        lines.extend(f"- {item}" for item in meeting_insights[:3])
+    gtd_link = payload.get("gtd_link") or {}
+    if gtd_link.get("url"):
+        lines.extend(
+            ["", f"[{gtd_link.get('label') or 'Open full GTD list'}]({gtd_link['url']})"]
+        )
     priorities = [
         clean_text(item)
         for item in ((payload.get("sections") or {}).get("priorities") or [])
@@ -60,6 +73,8 @@ def prepare_email(
     sent_check_absent: bool = False,
 ) -> dict:
     payload = normalize_payload(payload)
+    if not payload.get("gtd_link"):
+        payload["gtd_link"] = configured_gtd_link(profile)
     errors, _ = validate_profile(profile)
     if errors:
         raise ValueError("invalid profile: " + "; ".join(errors))

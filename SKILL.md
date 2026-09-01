@@ -74,18 +74,41 @@ Read [people-outreach.md](references/people-outreach.md) whenever `features.peop
 6. For delegated CRM review, prepare the scoped request with
    `scripts/crm_review_contract.py`, invoke the configured handler skill in its incremental daily
    mode, and validate its proposal. Never pass personal, excluded, or unclassified evidence.
-7. When action routing is enabled, normalize every candidate action and run
-   `scripts/action_routing_contract.py prepare`. Resolve every unready or rejected item before the
-   consolidated proposal. Give each action one primary destination; represent CRM or other overlap
-   only as a linked secondary record.
+7. When action routing is enabled, clarify every non-excluded candidate before destination
+   routing. Decide whether it is actionable; for actionable work, record the desired outcome when
+   multi-step and one physical, visible, verb-led next action. Record owner, related project,
+   context, hard due date, and defer/review date separately. Route non-actionable material to
+   drop, reference, Read/Review, Someday/Maybe, or a date-specific calendar/tickler as appropriate.
+   Then run `scripts/action_routing_contract.py prepare`. Resolve every unready or rejected item
+   before the consolidated proposal. When GTD is configured, it is the master reminder index for
+   every non-excluded executable commitment, including Jira-managed work; keep Jira as a linked
+   detailed execution record and CRM as a linked relationship record. Do not maintain independent
+   duplicate action descriptions across systems.
 8. When GTD is configured, audit its current tabs and headers with
    `scripts/gtd_sheet_contract.py` before building GTD operations. Treat stale dates as review
    prompts, never as proof that an action is complete.
 
 ## Build the close
 
-Review task state, communication, meetings, and source-of-truth evidence. Ask only about unresolved
-planned priorities that evidence cannot settle, manual captures, and next-workday priorities.
+Review task state, communication, meetings, and source-of-truth evidence. Apply the Getting Things
+Done sequence from `references/gtd-google-sheet.md`: Capture, Clarify, Organize, Reflect, Engage.
+Ask only about unresolved planned priorities that evidence cannot settle, manual captures, and
+next-workday priorities.
+
+Put actions estimated under two minutes in a **Quick Wins** review. Archive items the user confirms
+were completed; route any deferred item normally. Never send a message or perform an external task
+merely because it is a quick win.
+
+On the last configured workday of the week, perform the full Weekly Review in
+`references/gtd-google-sheet.md`. If that review is missed, carry it as an explicit incomplete
+review to the next close.
+
+Evaluate every in-scope project meeting once and allow nonexclusive outcomes: informational
+insight, actions, source-of-truth change, or any combination. Present all meetings in one
+consolidated disposition table rather than pausing one meeting at a time. Put useful information
+that produces no write in `sections.meeting_insights`. Route actions through the GTD clarification
+pass. Propose a canonical-page write only for a durable decision, milestone, status/owner/target
+change, material risk, metric, or new project.
 
 When Daily Takeaways are enabled, draft concrete things done well and improvements. If
 `required_items` is nonzero and `incomplete_policy` is `ask_until_complete`, obtain exactly that
@@ -114,9 +137,14 @@ Present one consolidated proposal containing:
 - Daily Takeaways and next-workday priorities
 - selected people-outreach reminders, when enabled
 - meeting recaps and agendas
+- one consolidated project-meeting disposition table showing insights, linked action ids and
+  destinations, and the canonical-page decision with its reason
 - CRM and source-of-truth proposals
 - every local artifact or external write that would occur
 - the exact email sender, recipients, subject, body style, and attachments when email delivery is enabled
+
+For every source-of-truth proposal or routing choice, show the exact Confluence page title and
+canonical URL beside the update/create/close option. Never refer only to "this page."
 
 For each proposed Jira ticket, show exact summary, project, issue type, assignee, due date or `none`,
 parent/related issue, concise acceptance criteria, and duplicate-search result. Require explicit
@@ -142,7 +170,10 @@ Markdown and any enabled Daily Plan DOCX before email preparation.
 The script refuses to overwrite an existing dated artifact. Generate Daily Plan DOCX, agenda DOCX,
 or XLSX task exports only when each export is enabled. Treat legacy `artifacts.exports.docx=true` as
 enabling both DOCX types unless a granular flag overrides it. Pass approved Takeaways to the Daily
-Plan renderer and use its configurable page-number footer.
+Plan renderer and use its configurable page-number footer. When GTD is configured, derive an
+**Open full GTD list** link from `spreadsheet_url` (or `spreadsheet_id`) and render it before
+priorities in Markdown, DOCX, and concise email. Render Meeting Insights before that link. The
+Daily Big 3 is a curated focus view and must not create fake due dates in GTD.
 
 When `email-delivery` is enabled, prepare the deterministic envelope with
 `scripts/prepare_close_email.py` only after the approved artifacts exist and the Daily Plan DOCX has
@@ -171,7 +202,9 @@ not let a CRM coverage gap block unrelated close artifacts.
 When GTD is enabled, upsert by `Close Action ID`; never append a retry duplicate. For completed,
 cancelled, resolved, or dropped work, append and verify the archive row before clearing the active
 row. Keep `Inbox` for unclarified capture, not as a permanent task list. Re-read the affected row
-before a write and verify exact cells afterward.
+before a write and verify exact cells afterward. Reserve `Due` for evidence-backed external
+deadlines; use `Defer / Review On` for ticklers, availability, and chosen review prompts. Every
+active project must have a current Next Action, Waiting For, or calendar trigger.
 
 ## Guardrails
 

@@ -477,6 +477,13 @@ def validate_profile(profile: dict, strict_paths: bool = False) -> tuple[list[st
                 errors.append(
                     f"modules.gtd-google-sheet.area_values.{scope_id} must be a non-empty string"
                 )
+        context_values = gtd.get("context_values", ["@Computer", "@Calls", "@Errands", "@Anywhere"])
+        if (
+            not isinstance(context_values, list)
+            or not context_values
+            or any(not _nonempty_string(value) for value in context_values)
+        ):
+            errors.append("modules.gtd-google-sheet.context_values must be a non-empty string array")
         tab_map = gtd.get("tab_map")
         if not isinstance(tab_map, dict):
             errors.append("modules.gtd-google-sheet.tab_map must be an object")

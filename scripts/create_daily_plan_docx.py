@@ -3,8 +3,8 @@
 
 The Daily Plan is the forward-looking output of the `close-day` skill. Its layout,
 top to bottom, is: title/date -> yesterday's wins -> today's improvements ->
-summary -> MIT ("The Frog") -> Daily Big 3 -> top action items -> other action
-items -> meeting schedule.
+summary -> meeting insights -> full GTD link -> MIT ("The Frog") -> Daily Big 3
+-> top action items -> other action items -> meeting schedule.
 
 This script loads the bundled agenda renderer only for its safe OpenXML text,
 paragraph, and package helpers. Standalone agenda exports remain separate files.
@@ -70,6 +70,13 @@ EXAMPLE_DATA = {
         "author": "Jim Rohn",
     },
     "summary": "Light meeting load; protect the morning for the customer follow-up write-up.",
+    "meeting_insights": [
+        "The customer wants a concrete implementation sequence before the next sync.",
+    ],
+    "gtd_link": {
+        "label": "Open full GTD list",
+        "url": "https://docs.google.com/spreadsheets/d/example/edit",
+    },
     "takeaways": {
         "source_day": "2026-06-26",
         "well": [
@@ -387,6 +394,7 @@ def styles_xml() -> str:
 
 
 FOOTER_REL_ID = "rId100"
+GTD_LINK_REL_ID = "rId101"
 
 
 def footer_xml() -> str:
@@ -417,14 +425,44 @@ def content_types_with_footer() -> str:
     return ac.content_types_xml().replace("</Types>", override + "</Types>")
 
 
-def document_rels_with_footer() -> str:
+def document_rels(data: dict) -> str:
     ac = agenda()
-    relationship = (
-        f'  <Relationship Id="{FOOTER_REL_ID}" '
-        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" '
-        'Target="footer1.xml"/>\n'
+    relationships: list[str] = []
+    if data.get("page_numbers", True):
+        relationships.append(
+            f'  <Relationship Id="{FOOTER_REL_ID}" '
+            'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" '
+            'Target="footer1.xml"/>\n'
+        )
+    gtd_link = data.get("gtd_link") or {}
+    if gtd_link.get("url"):
+        from xml.sax.saxutils import quoteattr
+
+        relationships.append(
+            f'  <Relationship Id="{GTD_LINK_REL_ID}" '
+            'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" '
+            f'Target={quoteattr(str(gtd_link["url"]))} TargetMode="External"/>\n'
+        )
+    return ac.document_rels_xml().replace(
+        "</Relationships>", "".join(relationships) + "</Relationships>"
     )
-    return ac.document_rels_xml().replace("</Relationships>", relationship + "</Relationships>")
+
+
+def gtd_link_paragraph(value: object) -> str | None:
+    ac = agenda()
+    if not isinstance(value, dict):
+        return None
+    url = ac.text(value.get("url")).strip()
+    if not url:
+        return None
+    label = ac.text(value.get("label") or "Open full GTD list").strip()
+    from xml.sax.saxutils import escape
+
+    run = (
+        '<w:r><w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr>'
+        f"<w:t>{escape(label)}</w:t></w:r>"
+    )
+    return f'<w:p><w:hyperlink r:id="{GTD_LINK_REL_ID}">{run}</w:hyperlink></w:p>'
 
 
 def daily_plan_body(data: dict) -> str:
@@ -444,6 +482,12 @@ def daily_plan_body(data: dict) -> str:
     if summary:
         parts.append(ac.simple_paragraph("Summary", style="Heading1"))
         parts.append(ac.simple_paragraph(summary))
+
+    bullet_block(parts, "Meeting Insights", data.get("meeting_insights"), keep_group=True)
+
+    gtd_link = gtd_link_paragraph(data.get("gtd_link"))
+    if gtd_link:
+        parts.append(gtd_link)
 
     mit = ac.text(data.get("mit")).strip()
     if mit:
@@ -492,7 +536,7 @@ def create_docx(data: dict, output_path: Path) -> None:
         docx.writestr("_rels/.rels", ac.root_rels_xml())
         docx.writestr(
             "word/_rels/document.xml.rels",
-            document_rels_with_footer() if page_numbers else ac.document_rels_xml(),
+            document_rels(data),
         )
         docx.writestr("word/document.xml", document_xml(data))
         docx.writestr("word/styles.xml", styles_xml())

@@ -53,7 +53,7 @@ class ActionRoutingContractTests(unittest.TestCase):
         proposal = prepare_action_proposal([item, dict(item)], routing_profile())
         self.assertEqual(len(proposal["items"]), 1)
 
-    def test_team_work_routes_to_jira_with_linked_crm_record(self) -> None:
+    def test_team_work_routes_to_gtd_with_linked_jira_and_crm_records(self) -> None:
         proposal = prepare_action_proposal(
             [{
                 "scope_id": "org",
@@ -65,8 +65,11 @@ class ActionRoutingContractTests(unittest.TestCase):
             routing_profile(),
         )
         item = proposal["items"][0]
-        self.assertEqual(item["primary_destination"], "jira")
-        self.assertEqual(item["secondary_records"][0]["destination"], "crm")
+        self.assertEqual(item["primary_destination"], "gtd")
+        self.assertEqual(
+            [record["destination"] for record in item["secondary_records"]],
+            ["jira", "crm"],
+        )
         plan = build_execution_plan(proposal)
         self.assertEqual(plan[1]["depends_on"], plan[0]["operation_key"])
 
@@ -105,7 +108,11 @@ class ActionRoutingContractTests(unittest.TestCase):
     def test_exact_approval_and_narrow_permissions_are_required(self) -> None:
         profile = routing_profile()
         proposal = prepare_action_proposal(
-            [{"scope_id": "org", "title": "Create rollout ticket", "action_kind": "team_project_work"}],
+            [{
+                "scope_id": "org", "title": "Create rollout ticket",
+                "action_kind": "team_project_work", "jira_requires_write": True,
+                "acceptance_criteria": ["Rollout ticket is ready"],
+            }],
             profile,
         )
         action_id = proposal["items"][0]["close_action_id"]
