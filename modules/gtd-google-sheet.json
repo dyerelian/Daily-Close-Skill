@@ -1,0 +1,61 @@
+{
+  "id": "gtd-google-sheet",
+  "display_name": "GTD Google Sheet",
+  "description": "Read and, after exact approval, update a configured Google Sheets GTD system with stable action ids and archive-before-clear lifecycle rules.",
+  "required_connectors": ["google-drive"],
+  "read_sources": [
+    {"type": "google-sheet", "mode": "read-only during sweep", "scope_config_key": "modules.gtd-google-sheet.scope_ids"}
+  ],
+  "write_targets": [
+    {"type": "google-sheet", "requires_approval": true, "permission_key": "permissions.gtd_writes_enabled"}
+  ],
+  "config_schema": {
+    "type": "object",
+    "required": [
+      "enabled", "connector_configured", "scope_ids", "area_values", "tab_map",
+      "archive_before_clear", "allow_writes"
+    ],
+    "properties": {
+      "enabled": {"type": "boolean"},
+      "connector": {"const": "google-drive"},
+      "connector_configured": {"type": "boolean"},
+      "spreadsheet_id": {"type": "string"},
+      "spreadsheet_url": {"type": "string"},
+      "scope_ids": {"type": "array"},
+      "area_values": {"type": "object"},
+      "tab_map": {"type": "object"},
+      "project_tabs": {"type": "object"},
+      "archive_before_clear": {"const": true},
+      "allow_writes": {"type": "boolean"}
+    }
+  },
+  "onboarding": {
+    "question": "Which Google Sheet and tabs should act as the GTD system?",
+    "default_for_profiles": [],
+    "setup_questions": [
+      "What is the native Google Sheet URL or spreadsheet id?",
+      "Which close-day scopes belong in the sheet, and what Area value maps to each?",
+      "Which tabs contain Next Actions, Waiting Fors, Inbox, Action Archive, and per-scope Projects?",
+      "Does the sheet expose stable Close Action ID and source metadata columns?",
+      "May approved writes upsert actions and archive completed rows before clearing them?"
+    ],
+    "connector_probes": [
+      "Read spreadsheet metadata and required header rows without changing the sheet."
+    ],
+    "required_artifacts": [
+      "GTD Sheet with Next Actions, Waiting Fors, Inbox, Action Archive, Projects, and Lists."
+    ],
+    "optional_artifacts": [],
+    "config_keys": [
+      "modules.gtd-google-sheet.spreadsheet_id",
+      "modules.gtd-google-sheet.scope_ids",
+      "modules.gtd-google-sheet.area_values",
+      "modules.gtd-google-sheet.tab_map",
+      "modules.gtd-google-sheet.archive_before_clear",
+      "modules.gtd-google-sheet.allow_writes",
+      "permissions.gtd_writes_enabled"
+    ]
+  },
+  "enabled_by_default": false,
+  "proposal_output_type": "gtd_sheet_operations"
+}

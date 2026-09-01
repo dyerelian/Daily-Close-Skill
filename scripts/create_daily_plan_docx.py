@@ -150,14 +150,19 @@ def quote_paragraph(quote: object) -> str | None:
     return ac.paragraph_xml([ac.run_xml(line, italic=True)])
 
 
-def bullet_block(parts: list[str], heading: str, values: object) -> None:
+def bullet_block(
+    parts: list[str], heading: str, values: object, *, keep_group: bool = False
+) -> None:
     ac = agenda()
     items = [ac.text(v) for v in (values or []) if ac.text(v).strip()]
     if not items:
         return
     parts.append(ac.simple_paragraph(heading, style="Heading1"))
-    for item in items:
-        parts.append(ac.simple_paragraph(item, bullet=True))
+    for index, item in enumerate(items):
+        if keep_group:
+            parts.append(leveled_bullet(item, keep_next=index < len(items) - 1))
+        else:
+            parts.append(ac.simple_paragraph(item, bullet=True))
 
 
 def takeaways_block(parts: list[str], takeaways: object) -> None:
@@ -194,7 +199,7 @@ def takeaways_block(parts: list[str], takeaways: object) -> None:
 def numbered_paragraph(value: str, num_id: int) -> str:
     ac = agenda()
     p_props = [
-        '<w:spacing w:after="80" w:line="300" w:lineRule="auto"/>',
+        '<w:spacing w:after="60" w:line="280" w:lineRule="auto"/>',
         f'<w:numPr><w:ilvl w:val="0"/><w:numId w:val="{num_id}"/></w:numPr>',
     ]
     return f"<w:p><w:pPr>{''.join(p_props)}</w:pPr>{ac.run_xml(ac.text(value))}</w:p>"
@@ -204,7 +209,7 @@ def leveled_bullet(value: str, level: int = 0, keep_next: bool = False) -> str:
     ac = agenda()
     """A bullet paragraph at an explicit list level (0 = top, 1 = sub-bullet)."""
     p_props = [
-        '<w:spacing w:after="80" w:line="300" w:lineRule="auto"/>',
+        '<w:spacing w:after="60" w:line="280" w:lineRule="auto"/>',
         f'<w:numPr><w:ilvl w:val="{level}"/><w:numId w:val="1"/></w:numPr>',
     ]
     if keep_next:
@@ -340,16 +345,16 @@ def numbering_xml() -> str:
 
 
 def styles_xml() -> str:
-    """Return the exact compact_reference_guide paragraph-style token map."""
+    """Return compact_reference_guide with the dense_daily_plan rhythm override."""
     return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:docDefaults>
     <w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:rPrDefault>
-    <w:pPrDefault><w:pPr><w:spacing w:after="120" w:line="300" w:lineRule="auto"/></w:pPr></w:pPrDefault>
+    <w:pPrDefault><w:pPr><w:spacing w:after="80" w:line="280" w:lineRule="auto"/></w:pPr></w:pPrDefault>
   </w:docDefaults>
   <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
     <w:name w:val="Normal"/>
-    <w:pPr><w:spacing w:after="120" w:line="300" w:lineRule="auto"/></w:pPr>
+    <w:pPr><w:spacing w:after="80" w:line="280" w:lineRule="auto"/></w:pPr>
     <w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="Title">
@@ -364,7 +369,7 @@ def styles_xml() -> str:
   </w:style>
   <w:style w:type="paragraph" w:styleId="Heading1">
     <w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/>
-    <w:pPr><w:keepNext/><w:spacing w:before="360" w:after="200"/></w:pPr>
+    <w:pPr><w:keepNext/><w:spacing w:before="280" w:after="140"/></w:pPr>
     <w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:b/><w:color w:val="2E74B5"/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="Heading2">
@@ -445,14 +450,7 @@ def daily_plan_body(data: dict) -> str:
         parts.append(ac.simple_paragraph("Most Important Task — “The Frog”", style="Heading1"))
         parts.append(ac.simple_paragraph(mit))
 
-    bullet_block(parts, "Daily Big 3", data.get("daily_big_3"))
-    takeaways_value = data.get("takeaways") or {}
-    if (
-        len(data.get("top_actions") or []) >= 4
-        and len(takeaways_value.get("well") or []) >= 3
-        and len(takeaways_value.get("improve") or []) >= 3
-    ):
-        parts.append(page_break())
+    bullet_block(parts, "Daily Big 3", data.get("daily_big_3"), keep_group=True)
     nested_bullet_block(parts, "Top Action Items", data.get("top_actions"))
     bullet_block(parts, "Other Action Items", data.get("other_actions"))
     meetings_block(parts, data.get("meetings"))

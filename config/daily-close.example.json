@@ -69,6 +69,8 @@
     "external_writes_enabled": false,
     "local_artifact_writes_enabled": false,
     "jira_ticket_approval_required": true,
+    "jira_writes_enabled": false,
+    "gtd_writes_enabled": false,
     "crm_writes_enabled": false,
     "email_delivery_enabled": false
   },

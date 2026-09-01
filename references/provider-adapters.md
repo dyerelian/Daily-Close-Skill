@@ -35,7 +35,7 @@ Normalize every gathered candidate before routing:
   "participants": ["person@example.org"],
   "timestamp": "ISO-8601 timestamp",
   "source": {
-    "provider": "gmail|google|outlook|slack|teams|granola|jira|confluence|local-files",
+    "provider": "gmail|google|google-sheets|outlook|slack|teams|granola|jira|confluence|local-files",
     "account": "configured account",
     "workspace": "optional workspace",
     "channel": "optional channel",

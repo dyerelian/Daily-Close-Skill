@@ -1,7 +1,7 @@
 interface:
   display_name: "Close Day"
-  short_description: "Multi-profile EOD close and planning workflow"
-  default_prompt: "Use $close-day to close my selected personal or organization profile and present the scoped proposal before writing anything."
+  short_description: "Route and close scoped work across daily systems"
+  default_prompt: "Use $close-day to review my selected profile, route actions to their configured primary systems, and present the scoped proposal before writing anything."
 
 policy:
   allow_implicit_invocation: true

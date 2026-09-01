@@ -1,12 +1,19 @@
 {
   "id": "jira-sweep",
   "display_name": "Jira Sweep",
-  "description": "Read configured Jira queries for assigned work, blockers, updates, and follow-ups within one explicit profile scope per query.",
+  "description": "Read scoped Jira queries and, when narrowly enabled, apply approved create, update, comment, or transition operations with duplicate checks.",
   "required_connectors": ["atlassian"],
   "read_sources": [
     {"type": "jira", "mode": "read-only", "scope_config_key": "modules.jira-sweep.queries[].scope_id"}
   ],
-  "write_targets": [],
+  "write_targets": [
+    {
+      "type": "jira",
+      "requires_approval": true,
+      "permission_key": "permissions.jira_writes_enabled",
+      "scope_config_key": "modules.jira-sweep.writes.scope_ids"
+    }
+  ],
   "config_schema": {
     "type": "object",
     "required": ["enabled", "connector_configured", "queries"],
@@ -14,7 +21,8 @@
       "enabled": {"type": "boolean"},
       "connector": {"type": "string"},
       "connector_configured": {"type": "boolean"},
-      "queries": {"type": "array"}
+      "queries": {"type": "array"},
+      "writes": {"type": "object"}
     }
   },
   "onboarding": {
@@ -23,14 +31,18 @@
     "setup_questions": [
       "Is an Atlassian/Jira connector authenticated?",
       "Which JQL query should be used for each profile scope?",
-      "What maximum number of issues should each query return?"
+      "What maximum number of issues should each query return?",
+      "Should Jira own team, delegated, multi-step, or acceptance-criteria actions?",
+      "Which scope-bound project key, issue type, assignee, and lifecycle operations are allowed?"
     ],
     "connector_probes": ["Read the authenticated Jira identity without listing issue content."],
     "required_artifacts": [],
     "optional_artifacts": [],
     "config_keys": [
       "modules.jira-sweep.connector_configured",
-      "modules.jira-sweep.queries"
+      "modules.jira-sweep.queries",
+      "modules.jira-sweep.writes",
+      "permissions.jira_writes_enabled"
     ]
   },
   "enabled_by_default": false,

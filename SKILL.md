@@ -48,6 +48,8 @@ Read [gmail-delivery.md](references/gmail-delivery.md) when enabling or troubles
 email delivery.
 Read [crm-handler-contract.md](references/crm-handler-contract.md) when an existing CRM is connected
 through a delegated handler skill.
+Read [action-routing.md](references/action-routing.md) whenever `action-routing` is enabled. Read
+[gtd-google-sheet.md](references/gtd-google-sheet.md) whenever a live GTD Sheet is configured.
 
 ## Gather and route
 
@@ -71,6 +73,13 @@ through a delegated handler skill.
 6. For delegated CRM review, prepare the scoped request with
    `scripts/crm_review_contract.py`, invoke the configured handler skill in its incremental daily
    mode, and validate its proposal. Never pass personal, excluded, or unclassified evidence.
+7. When action routing is enabled, normalize every candidate action and run
+   `scripts/action_routing_contract.py prepare`. Resolve every unready or rejected item before the
+   consolidated proposal. Give each action one primary destination; represent CRM or other overlap
+   only as a linked secondary record.
+8. When GTD is configured, audit its current tabs and headers with
+   `scripts/gtd_sheet_contract.py` before building GTD operations. Treat stale dates as review
+   prompts, never as proof that an action is complete.
 
 ## Build the close
 
@@ -93,7 +102,8 @@ Present one consolidated proposal containing:
 
 - proposed Jira tickets first, when any exist
 - source coverage, gaps, and ignored or excluded material counts
-- completed, carried, captured, waiting-for, and task updates with scope labels
+- completed, carried, captured, waiting-for, and task updates with scope labels, stable action id,
+  one primary destination, and any linked secondary records
 - Daily Takeaways and next-workday priorities
 - meeting recaps and agendas
 - CRM and source-of-truth proposals
@@ -105,7 +115,9 @@ parent/related issue, concise acceptance criteria, and duplicate-search result. 
 approval of that displayed Jira list; general approval does not authorize an undisclosed ticket.
 
 Wait for explicit approval. Treat user edits as the executable scope and execute only approved
-lines. Run writes in this order: tasks, CRM, source-of-truth, logs/state, plans, and agendas.
+lines. Validate the exact approved action ids before writing. Run primary writes and their links in
+this order: Jira, GTD, CRM, source-of-truth, logs/state, plans, and agendas. If a primary write
+fails, stop its dependent links; do not create a disconnected secondary record.
 
 ## Artifacts
 
@@ -145,12 +157,19 @@ proposal. Re-read affected rows before writing, verify approved cells afterward,
 handler's weekly Jira rollover disabled during a daily close. Record compact CRM audit state; do
 not let a CRM coverage gap block unrelated close artifacts.
 
+When GTD is enabled, upsert by `Close Action ID`; never append a retry duplicate. For completed,
+cancelled, resolved, or dropped work, append and verify the archive row before clearing the active
+row. Keep `Inbox` for unclarified capture, not as a permanent task list. Re-read the affected row
+before a write and verify exact cells afterward.
+
 ## Guardrails
 
 - Keep private profiles and connector state outside the Git repository.
 - Bind sources to allowed scopes before prioritizing; never leak evidence across profiles.
 - Keep external systems read-only during gathering.
 - Require the proposal gate for local and external writes and the stricter Jira gate for tickets.
+- Treat `gtd_writes_enabled`, `jira_writes_enabled`, and `crm_writes_enabled` as separate narrow
+  permissions; general external-write permission does not imply any of them.
 - Never store OAuth credentials; connector authentication is runtime-managed.
 - Keep source evidence compact: provider, stable id, account/workspace, timestamp, title, snippet,
   participants, and link.
