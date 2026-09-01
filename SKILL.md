@@ -103,12 +103,20 @@ On the last configured workday of the week, perform the full Weekly Review in
 `references/gtd-google-sheet.md`. If that review is missed, carry it as an explicit incomplete
 review to the next close.
 
+Audit canonical-page coverage for every active or materially changed project. Propose creating a
+page when no exact canonical URL exists, and propose refreshing a page when its latest update
+predates a material change found in the close. Merge project-driven and meeting-driven candidates
+by canonical page id so each page is proposed and written at most once.
+
 Evaluate every in-scope project meeting once and allow nonexclusive outcomes: informational
 insight, actions, source-of-truth change, or any combination. Present all meetings in one
 consolidated disposition table rather than pausing one meeting at a time. Put useful information
 that produces no write in `sections.meeting_insights`. Route actions through the GTD clarification
 pass. Propose a canonical-page write only for a durable decision, milestone, status/owner/target
-change, material risk, metric, or new project.
+change, material risk, metric, or new project. Run this meeting disposition on every close,
+including retroactive or backfill closes. When a source-of-truth write is deferred, still record the
+exact target page, intended create/update decision, and deferral reason in the EOD state or log so
+the follow-up cannot disappear.
 
 When Daily Takeaways are enabled, draft concrete things done well and improvements. If
 `required_items` is nonzero and `incomplete_policy` is `ask_until_complete`, obtain exactly that
