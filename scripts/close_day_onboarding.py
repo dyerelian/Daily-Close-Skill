@@ -201,6 +201,7 @@ def collect_interactive_answers() -> dict:
             ),
             "scope_ids": selected_scopes,
             "area_values": area_values,
+            "context_values": ["@Computer", "@Calls", "@Errands", "@Anywhere"],
             "tab_map": {
                 "next_actions": ask("Next Actions tab", "Next Actions"),
                 "waiting_fors": ask("Waiting Fors tab", "Waiting Fors"),
@@ -460,6 +461,9 @@ def build_profile(answers: dict) -> dict:
                     "archive": "Action Archive",
                 })
                 value.setdefault("area_values", {})
+                value.setdefault(
+                    "context_values", ["@Computer", "@Calls", "@Errands", "@Anywhere"]
+                )
                 value.setdefault("archive_before_clear", True)
                 value.setdefault("allow_writes", False)
             if module_id == "action-routing":

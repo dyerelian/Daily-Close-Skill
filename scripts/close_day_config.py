@@ -477,6 +477,13 @@ def validate_profile(profile: dict, strict_paths: bool = False) -> tuple[list[st
                 errors.append(
                     f"modules.gtd-google-sheet.area_values.{scope_id} must be a non-empty string"
                 )
+        context_values = gtd.get("context_values", ["@Computer", "@Calls", "@Errands", "@Anywhere"])
+        if (
+            not isinstance(context_values, list)
+            or not context_values
+            or any(not _nonempty_string(value) for value in context_values)
+        ):
+            errors.append("modules.gtd-google-sheet.context_values must be a non-empty string array")
         tab_map = gtd.get("tab_map")
         if not isinstance(tab_map, dict):
             errors.append("modules.gtd-google-sheet.tab_map must be an object")
@@ -678,6 +685,24 @@ def validate_profile(profile: dict, strict_paths: bool = False) -> tuple[list[st
         errors.append("features.recurring_meeting_recap.enabled must be a boolean")
     if not isinstance((profile.get("features") or {}).get("docx_page_numbers", False), bool):
         errors.append("features.docx_page_numbers must be a boolean")
+
+    outreach = ((profile.get("features") or {}).get("people_outreach") or {})
+    if not isinstance(outreach, dict):
+        errors.append("features.people_outreach must be an object")
+    elif outreach.get("enabled", False):
+        if not _nonempty_string(outreach.get("list_path")):
+            errors.append("features.people_outreach.list_path must be a non-empty string")
+        if not _nonempty_string(outreach.get("state_path")):
+            errors.append("features.people_outreach.state_path must be a non-empty string")
+        count = outreach.get("daily_count", 2)
+        if not isinstance(count, int) or count < 1:
+            errors.append("features.people_outreach.daily_count must be a positive integer")
+        if outreach.get("schedule", "workdays_and_manual_runs") != "workdays_and_manual_runs":
+            errors.append("features.people_outreach.schedule must be workdays_and_manual_runs")
+        if outreach.get("selection_policy", "round_robin") != "round_robin":
+            errors.append("features.people_outreach.selection_policy must be round_robin")
+        if outreach.get("duplicate_policy", "count_entries") != "count_entries":
+            errors.append("features.people_outreach.duplicate_policy must be count_entries")
 
     return errors, warnings
 

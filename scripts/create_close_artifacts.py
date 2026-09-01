@@ -22,6 +22,7 @@ from close_day_config import (
 )
 from create_agenda_docx import create_docx as create_agenda_docx
 from create_daily_plan_docx import create_docx as create_daily_plan_docx
+from close_payload import configured_gtd_link, normalize_payload
 
 
 def clean_filename(value: str) -> str:
@@ -154,6 +155,7 @@ def eod_markdown(payload: dict, scopes: dict[str, str]) -> str:
     takeaways(lines, payload, scopes)
     crm_review_summary(lines, payload, scopes)
     sections = payload.get("sections") or {}
+    section(lines, "Meeting Insights", sections.get("meeting_insights"), scopes)
     for key, heading in (
         ("accomplished", "Accomplished"),
         ("captured", "Captured"),
@@ -166,6 +168,7 @@ def eod_markdown(payload: dict, scopes: dict[str, str]) -> str:
 
 
 def plan_markdown(payload: dict, scopes: dict[str, str]) -> str:
+    payload = normalize_payload(payload)
     target = payload.get("target_date") or payload.get("date") or date.today().isoformat()
     lines = [f"# Daily Plan — {target}", ""]
     plan_reflections(lines, payload, scopes)
@@ -173,17 +176,25 @@ def plan_markdown(payload: dict, scopes: dict[str, str]) -> str:
     if summary:
         lines.extend([summary, ""])
     sections = payload.get("sections") or {}
+    section(lines, "Meeting Insights", sections.get("meeting_insights"), scopes)
+    gtd_link = payload.get("gtd_link") or {}
+    if gtd_link.get("url"):
+        lines.extend(
+            [f"[{gtd_link.get('label') or 'Open full GTD list'}]({gtd_link['url']})", ""]
+        )
     for key, heading in (
         ("priorities", "Priorities"),
         ("tasks", "Tasks"),
         ("waiting", "Waiting On"),
         ("meetings", "Meetings"),
+        ("people_outreach", "People Outreach"),
     ):
         section(lines, heading, sections.get(key), scopes)
     return "\n".join(lines).rstrip() + "\n"
 
 
 def task_markdown(payload: dict, scopes: dict[str, str]) -> str:
+    payload = normalize_payload(payload)
     target = payload.get("target_date") or payload.get("date") or date.today().isoformat()
     lines = [f"# Tasks — {target}", ""]
     tasks = ((payload.get("sections") or {}).get("tasks") or []) + ((payload.get("sections") or {}).get("carried") or [])
@@ -210,6 +221,9 @@ def agenda_markdown(agenda: dict, scopes: dict[str, str]) -> str:
 
 
 def build_outputs(payload: dict, profile: dict) -> dict[Path, str | dict]:
+    payload = normalize_payload(payload)
+    if not payload.get("gtd_link"):
+        payload["gtd_link"] = configured_gtd_link(profile)
     paths = {key: Path(value) for key, value in resolved_artifact_paths(profile["artifacts"]).items()}
     scopes = {scope["id"]: scope["name"] for scope in profile.get("scopes") or []}
     close_date = iso_date(payload.get("date") or date.today().isoformat(), "date")
@@ -229,6 +243,9 @@ def build_outputs(payload: dict, profile: dict) -> dict[Path, str | dict]:
 
 
 def export_paths(payload: dict, profile: dict) -> dict[str, list[tuple[Path, dict, str]] | Path]:
+    payload = normalize_payload(payload)
+    if not payload.get("gtd_link"):
+        payload["gtd_link"] = configured_gtd_link(profile)
     paths = {key: Path(value) for key, value in resolved_artifact_paths(profile["artifacts"]).items()}
     close_date = iso_date(payload.get("date") or date.today().isoformat(), "date")
     target = iso_date(payload.get("target_date") or close_date, "target_date")
@@ -269,6 +286,8 @@ def export_paths(payload: dict, profile: dict) -> dict[str, list[tuple[Path, dic
             daily_plan = {
                 "date": target,
                 "summary": payload.get("summary"),
+                "meeting_insights": labeled(sections.get("meeting_insights")),
+                "gtd_link": copy.deepcopy(payload.get("gtd_link")),
                 "takeaways": {
                     "source_day": takeaway_value.get("source_day") or close_date,
                     "well": labeled(takeaway_value.get("well"))[:takeaway_limit],
@@ -280,6 +299,7 @@ def export_paths(payload: dict, profile: dict) -> dict[str, list[tuple[Path, dic
                 "daily_big_3": labeled(sections.get("priorities")),
                 "top_actions": labeled(sections.get("tasks")),
                 "other_actions": labeled(sections.get("waiting")),
+                "people_outreach": labeled(sections.get("people_outreach")),
                 "meetings": labeled_meetings(sections.get("meetings")),
             }
         daily_plan["page_numbers"] = bool(features.get("docx_page_numbers", True))
@@ -300,6 +320,7 @@ def export_paths(payload: dict, profile: dict) -> dict[str, list[tuple[Path, dic
 
 
 def create_task_xlsx(payload: dict, profile: dict, output: Path) -> None:
+    payload = normalize_payload(payload)
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font, PatternFill

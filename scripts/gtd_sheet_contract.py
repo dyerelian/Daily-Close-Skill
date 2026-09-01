@@ -14,9 +14,9 @@ from close_day_config import atomic_write_text, load_json, resolve_profile, vali
 
 DEFAULT_HEADERS = {
     "next_actions": [
-        "Area", "Related Project", "Next Action", "Category", "Due", "Priority", "Status",
-        "Close Action ID", "Source Provider", "Source ID", "Source Link", "External Key",
-        "Created At", "Last Synced At",
+        "Area", "Related Project", "Next Action", "Context", "Category", "Defer / Review On",
+        "Due", "Priority", "Status", "Close Action ID", "Source Provider", "Source ID",
+        "Source Link", "External Key", "Created At", "Last Synced At",
     ],
     "waiting_fors": [
         "Waiting For", "Owner", "Status", "Related Project", "Since", "Follow-up Date", "Area",
@@ -42,6 +42,13 @@ def _text(value: object) -> str:
 
 def _module(profile: dict) -> dict:
     return (profile.get("modules") or {}).get("gtd-google-sheet") or {}
+
+
+def _context_values(profile: dict) -> list[str]:
+    return list(
+        _module(profile).get("context_values")
+        or ["@Computer", "@Calls", "@Errands", "@Anywhere"]
+    )
 
 
 def audit_gtd_schema(headers_by_tab: dict[str, list[str]], module: dict) -> dict:
@@ -100,12 +107,21 @@ def build_gtd_operations(action_proposal: dict, profile: dict) -> list[dict]:
                 **common,
             }
         else:
+            source_due = item.get("due")
+            hard_due = item.get("hard_due") or (
+                source_due if item.get("due_is_hard") is True else None
+            )
+            review_on = item.get("defer_until") or item.get("review_on")
+            if not review_on and source_due and item.get("due_is_hard") is not True:
+                review_on = source_due
             row = {
                 "Area": area_values.get(item.get("scope_id")),
                 "Related Project": item.get("related_project"),
                 "Next Action": item.get("title"),
+                "Context": item.get("context") or "@Anywhere",
                 "Category": item.get("category") or "Task",
-                "Due": item.get("due"),
+                "Defer / Review On": review_on,
+                "Due": hard_due,
                 "Priority": item.get("priority"),
                 "Status": item.get("status") or "Active",
                 **common,
@@ -131,6 +147,7 @@ def validate_gtd_operations(
     scopes = {scope.get("id") for scope in profile.get("scopes") or []}
     area_values = module.get("area_values") or {}
     tabs = module.get("tab_map") or {}
+    contexts = set(_context_values(profile))
     errors = []
     approved = set(approved_ids) if approved_ids is not None else None
     if not module.get("enabled"):
@@ -161,6 +178,10 @@ def validate_gtd_operations(
                 errors.append(f"{label}.tab is not an allowed active GTD tab")
             if not isinstance(operation.get("row"), dict):
                 errors.append(f"{label}.row must be an object")
+            elif operation.get("tab") == tabs.get("next_actions"):
+                context = _text(operation["row"].get("Context"))
+                if context not in contexts:
+                    errors.append(f"{label}.row.Context is not configured: {context}")
         elif op_type == "archive_and_clear":
             if module.get("archive_before_clear") is not True:
                 errors.append(f"{label}: archive_before_clear is required")

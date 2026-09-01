@@ -14,12 +14,64 @@ from create_close_artifacts import (  # noqa: E402
     create_task_xlsx,
     eod_markdown,
     export_paths,
+    plan_markdown,
     validate_required_takeaways,
 )
+from close_payload import normalize_payload  # noqa: E402
 from propose_crm_from_mail import normalized_email_payload  # noqa: E402
 
 
 class ArtifactTests(unittest.TestCase):
+    def test_legacy_top_level_sections_are_normalized(self) -> None:
+        payload = {
+            "date": "2026-08-07",
+            "target_date": "2026-08-10",
+            "priorities": [{"text": "Restore priority rendering", "scope_id": "acme"}],
+            "tasks": [{"text": "Verify the emailed plan", "scope_id": "acme"}],
+        }
+        normalized = normalize_payload(payload)
+        self.assertEqual(normalized["sections"]["priorities"], payload["priorities"])
+        self.assertEqual(normalized["sections"]["tasks"], payload["tasks"])
+        with tempfile.TemporaryDirectory() as temporary:
+            profile = {
+                "artifacts": {
+                    "workspace_root": temporary,
+                    "path_overrides": {},
+                    "canonical": {"markdown": True, "json": True},
+                    "exports": {"docx": False, "xlsx": False},
+                },
+                "scopes": [{"id": "acme", "name": "Acme"}],
+            }
+            rendered = "\n".join(value for value in build_outputs(payload, profile).values() if isinstance(value, str))
+            self.assertIn("[Acme] Restore priority rendering", rendered)
+            self.assertIn("[Acme] Verify the emailed plan", rendered)
+
+    def test_conflicting_section_representations_fail(self) -> None:
+        with self.assertRaisesRegex(ValueError, "conflicting"):
+            normalize_payload({
+                "priorities": ["top-level"],
+                "sections": {"priorities": ["nested"]},
+            })
+
+    def test_people_outreach_flows_into_daily_plan_export(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            profile = {
+                "artifacts": {
+                    "workspace_root": temporary,
+                    "path_overrides": {},
+                    "canonical": {"markdown": True, "json": True},
+                    "exports": {"daily_plan_docx": True},
+                },
+                "features": {"docx_page_numbers": True},
+                "scopes": [],
+            }
+            payload = {
+                "date": "2026-08-27",
+                "target_date": "2026-08-28",
+                "sections": {"priorities": ["Priority"], "people_outreach": ["Reach out to A", "Reach out to B"]},
+            }
+            jobs = export_paths(payload, profile)
+            self.assertEqual(jobs["docx"][0][1]["people_outreach"], ["Reach out to A", "Reach out to B"])
     def test_normalized_mail_can_feed_crm_proposals(self) -> None:
         payload = normalized_email_payload({
             "items": [
@@ -102,6 +154,22 @@ class ArtifactTests(unittest.TestCase):
         self.assertIn("[Acme] Updated Acme last interaction", rendered)
         self.assertIn("Slack unavailable", rendered)
 
+    def test_daily_plan_places_meeting_insights_and_gtd_link_before_priorities(self) -> None:
+        rendered = plan_markdown(
+            {
+                "target_date": "2026-09-01",
+                "summary": "Focus the day.",
+                "gtd_link": {"label": "Open full GTD list", "url": "https://example.test/gtd"},
+                "sections": {
+                    "meeting_insights": ["Vasco relationship remains active."],
+                    "priorities": ["Send the proposal"],
+                },
+            },
+            {},
+        )
+        self.assertLess(rendered.index("Meeting Insights"), rendered.index("Open full GTD list"))
+        self.assertLess(rendered.index("Open full GTD list"), rendered.index("Priorities"))
+
     def test_optional_export_jobs_are_derived_from_profile(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             profile = {
@@ -140,6 +208,12 @@ class ArtifactTests(unittest.TestCase):
                     },
                 },
                 "features": {"daily_takeaways": {"max_items": 3}},
+                "modules": {
+                    "gtd-google-sheet": {
+                        "enabled": True,
+                        "spreadsheet_url": "https://example.test/gtd",
+                    }
+                },
                 "scopes": [{"id": "acme", "name": "Acme"}],
             }
             payload = {
@@ -150,6 +224,7 @@ class ArtifactTests(unittest.TestCase):
             jobs = export_paths(payload, profile)
             self.assertEqual(len(jobs["docx"]), 1)
             self.assertEqual(jobs["docx"][0][2], "plan")
+            self.assertEqual(jobs["docx"][0][1]["gtd_link"]["url"], "https://example.test/gtd")
 
     def test_exact_reflections_block_incomplete_close(self) -> None:
         profile = {

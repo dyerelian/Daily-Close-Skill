@@ -46,7 +46,11 @@ class EmailDeliveryTests(unittest.TestCase):
                 "date": "2026-08-09",
                 "target_date": "2026-08-10",
                 "summary": "Focused day.",
-                "sections": {"priorities": ["First", "Second"]},
+                "gtd_link": {"label": "Open full GTD list", "url": "https://example.test/gtd"},
+                "sections": {
+                    "meeting_insights": ["The contract remains active."],
+                    "priorities": ["First", "Second"],
+                },
             }
             first = prepare_email(payload, value)
             second = prepare_email(copy.deepcopy(payload), value)
@@ -56,6 +60,8 @@ class EmailDeliveryTests(unittest.TestCase):
             self.assertEqual(len(first["attachment_files"]), 1)
             self.assertEqual(first["status"], "approval_required")
             self.assertFalse(first["send"])
+            self.assertLess(first["body"].index("Meeting insights"), first["body"].index("Open full GTD list"))
+            self.assertLess(first["body"].index("Open full GTD list"), first["body"].index("Top priorities"))
 
             approved_state = record_delivery(copy.deepcopy(payload), first, "approved")
             approved = prepare_email(approved_state, value)
@@ -162,6 +168,25 @@ class EmailDeliveryTests(unittest.TestCase):
             value["modules"]["email-delivery"]["connector_configured"] = False
             with self.assertRaises(RuntimeError):
                 prepare_email(payload, value)
+
+    def test_legacy_top_level_priorities_and_outreach_are_in_summary_body(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            plans = workspace / "Plans"
+            plans.mkdir()
+            (plans / "Daily Plan 2026-08-10.docx").write_bytes(b"docx")
+            value = self.configured_profile(workspace)
+            payload = {
+                "date": "2026-08-09",
+                "target_date": "2026-08-10",
+                "summary": "Focused day.",
+                "priorities": ["First priority"],
+                "people_outreach": ["Reach out to Ramya", "Reach out to Srikanth"],
+            }
+            envelope = prepare_email(payload, value)
+            self.assertIn("First priority", envelope["body"])
+            self.assertIn("Reach out to Ramya", envelope["body"])
+            self.assertIn("Reach out to Srikanth", envelope["body"])
 
 
 if __name__ == "__main__":
