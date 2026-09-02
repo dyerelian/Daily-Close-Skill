@@ -332,6 +332,40 @@ narrative never became a GTD change still reaches its canonical page. Follow
    project + meeting facts folded together); a meeting-only page becomes a **new entry**; a
    "new page" decision becomes a create entry. No page appears twice.
 
+### Phase 2f — Direct-report 1:1 trackers (read-only extraction)
+
+Dan keeps a **confidential, local 1:1 tracker** per direct report. When the target day's meetings
+(the Phase 2e enumeration — calendar ∪ Granola) include a **1:1 with one of the three reports**,
+refresh that person's tracker. This is **routing/extraction only** here; the write happens in Phase 5
+step 4b behind the single gate.
+
+Roster and tracker paths (each is a JSON source + a rendered `.docx`, under
+`…\OneDrive - Automobile Club of Southern California\_Documents\my Team\Team Yerelian\`):
+- **Mike Mehrer** — `Mike\Mike Mehrer - 1-1 Tracker.json` / `.docx`
+- **Mariyo Kamiya** — `Mariyo\Mariyo Kamiya - 1-1 Tracker.json` / `.docx`
+- **Joey Lee** — `Joey\Joey Lee - 1-1 Tracker.json` / `.docx`
+
+For each 1:1 with a rostered report on the target day:
+1. **Locate the Granola note** for that 1:1 (title like `<Name> 1:1`) by start-time overlap with the
+   calendar block — these notes' AI **summaries are null**, so read the **transcript**
+   (`get_transcript`), correlating created_at to the meeting slot (UTC meeting-start, −7h PDT) per the
+   Granola-timestamp habit. **If no transcript exists**, don't invent one — ask Dan for the recap +
+   action items in Phase 3 (manual inputs).
+2. **Extract** from the transcript: new action items (with owners), a short discussion recap, any
+   candidate **wins** and **watch items**, and which prior open items are now **done**.
+3. **Stage the tracker edit** (propose in Phase 4, don't write yet): read the person's `.json`, then —
+   - prepend new action items to **Open Action Items**, each prefixed `[<meeting date ISO>]`
+     (owner named if not the report); mark/remove ones now complete;
+   - move the current **Last 1:1 - <old date>** section's gist into a one-line **1:1 History** entry,
+     and replace it with **Last 1:1 - <new date>** (the new recap bullets);
+   - add any confirmed **Wins & Recognition** / **Watch Items** bullets (dated);
+   - bump the `subtitle` `Updated <today>`.
+
+This runs **only** when a rostered 1:1 is on the target day — no rostered 1:1, no tracker work.
+**Confidential + local**: never route a tracker to Confluence or the Phase 2e page universe.
+Only the read-only Granola extraction may be delegated to a subagent — **never** the proposal
+(a fork will confabulate Dan's calls); Dan confirms every staged tracker edit at the gate.
+
 ### Phase 3 — Ask Dan for manual inputs
 
 After displaying the gathered items (so he has context), explicitly ask:
@@ -366,6 +400,10 @@ Render a clean, sectioned summary and wait for approval. Dan can edit or drop an
   **first task** — *send out agendas & pre-reads for the agenda send-out day's meetings* (the
   next working day after the target), with those agendas drafted and ready in the Daily Plan doc.
 - **Project reviews** — projects to stamp `Last Reviewed = today`.
+- **Direct-report 1:1 trackers** (Phase 2f) — only when a 1:1 with Mike Mehrer, Mariyo Kamiya, or
+  Joey Lee is on the target day. Per report, show the staged tracker edit: new dated action items,
+  items now complete, the new **Last 1:1** recap (with the prior recap collapsing into 1:1 History),
+  and any candidate Wins / Watch items. Editable — Dan drops/tweaks any line before approving.
 - **Completed projects** — projects set to a done status get their canonical Confluence
   page moved from the `Active Projects` to the `Closed Projects` index list (and page
   Status flipped to Closed). See the `source-of-truth` skill's
@@ -440,6 +478,18 @@ Render a clean, sectioned summary and wait for approval. Dan can edit or drop an
    priorities go under *Accomplished today*, and any that Dan carried forward go under
    *Carried to tomorrow*. If a file for today already exists, **append a timestamped section**
    rather than overwriting.
+
+   **4b. Refresh direct-report 1:1 trackers** (only when a rostered 1:1 was on the target day and Dan
+   approved the staged edit in Phase 4). For each such report: apply the approved changes to the
+   person's tracker **`.json`** (Open Action Items, Last 1:1 / 1:1 History, Wins, Watch Items, and the
+   `Updated` date) with the `Write` tool (BOM-free) — the JSON is the source of truth; never hand-edit
+   the `.docx`. Then re-render:
+   ```powershell
+   & 'C:\Program Files\Python312\python.exe' "C:\Users\E724101\.claude\skills\agenda-creator\scripts\create_agenda_docx.py" `
+     --input  "…\my Team\Team Yerelian\<Folder>\<Name> - 1-1 Tracker.json" `
+     --output "…\my Team\Team Yerelian\<Folder>\<Name> - 1-1 Tracker.docx"
+   ```
+   Confirm a `Wrote …` line / exit 0. These files stay **local** — never publish them to Confluence.
 
 5. **Generate the target day's Daily Plan `.docx`.** Build the daily-plan JSON and write it BOM-free
    to `$env:TEMP\daily-plan.json` (use the target day chosen in Phase 2b for `date` and the filename):
@@ -519,8 +569,8 @@ Render a clean, sectioned summary and wait for approval. Dan can edit or drop an
 7. **Report** one line per change (sheet, ID, title, added/updated/completed) + the EOD log path
    + the Daily Plan `.docx` path + the Agendas-folder path with the count of standalone agenda
    files written + the count of meeting agendas embedded + a one-line direction summary (how many
-   agendas used newly-captured vs. reused vs. auto-drafted direction). Excel rollups/Dashboard
-   refresh when the workbook is next opened.
+   agendas used newly-captured vs. reused vs. auto-drafted direction) + any direct-report 1:1
+   trackers refreshed (Phase 2f/4b). Excel rollups/Dashboard refresh when the workbook is next opened.
 
 ## Defaults & guardrails
 
@@ -539,6 +589,11 @@ Render a clean, sectioned summary and wait for approval. Dan can edit or drop an
   1:1s in the routing loop (never auto-routes them), and **dedupes pages by `pageId`** so each
   canonical page is fetched and written exactly once even when multiple meetings and/or a project
   change target it.
+- **Direct-report 1:1 trackers (Phase 2f/4b) are confidential and local-only** — the three trackers
+  live under `_Documents\my Team\Team Yerelian\`; each is a JSON source + rendered `.docx`
+  (`agenda-creator`'s `create_agenda_docx.py`). Refresh only when that report's 1:1 is on the target
+  day; edit the JSON then re-render. Never publish or link them to Confluence / any shared page, and
+  never delegate the proposal to a subagent (read-only Granola extraction only).
 - Use **ISO dates** in the payload; exact names for owners/people (e.g. `Mariyo`).
 - One approval gate only: gather everything, propose once, then execute.
 - **Per-meeting agenda direction is optional and captured once.** Gather Dan's per-meeting blurbs
