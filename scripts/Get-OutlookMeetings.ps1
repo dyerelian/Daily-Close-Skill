@@ -11,13 +11,20 @@
 
   Calendar reads only. The script never sends, moves, or modifies any Outlook item.
 
-  CACHED-MODE / HEADER-ONLY CAVEAT: if the mailbox is in Cached Exchange Mode set to
-  "Download Headers Only" (Outlook does this when it thinks the connection — e.g. a VPN — is
-  slow), appointment BODIES, ORGANIZER, and ATTENDEES live on the server but are not synced
-  locally, so COM returns them empty even though Subject/Start/End/Location are present. Such
-  items report `DownloadState = 1` (olHeaderOnly); the script surfaces `headerOnlyCount` and a
-  `warning`. This is NOT a script bug — fix it in Outlook: Send/Receive > Download Preferences >
-  "Download Full Items", uncheck "On Slow Connections Download Only Headers", then press F9.
+  EMPTY BODY / ORGANIZER / ATTENDEES: appointment BODIES, ORGANIZER, and ATTENDEES can come back
+  empty even though Subject/Start/End/Location are present. Two different causes, and the script
+  distinguishes them in `warning` because only one of them is fixable:
+
+    * EVERY item empty — on this machine that is the GPO-enforced Outlook OBJECT MODEL GUARD
+      blocking programmatic access to that content. It is not fixable from Outlook's UI:
+      switching to "Download Full Items" does NOT help (verified). Treat subjects, times, and
+      locations as the only reliable fields and ask Dan to paste anything else that matters.
+    * SOME items empty — genuine Cached Exchange Mode "Download Headers Only" (Outlook does this
+      when it thinks the connection, e.g. a VPN, is slow). Those items report `DownloadState = 1`
+      (olHeaderOnly). Fix in Outlook: Send/Receive > Download Preferences > "Download Full Items",
+      uncheck "On Slow Connections Download Only Headers", then press F9.
+
+  Either way it is NOT a script bug; the script surfaces `headerOnlyCount` and a `warning`.
 
 .PARAMETER Date
   The day to read (any parseable date). Defaults to tomorrow.
@@ -144,7 +151,16 @@ try {
     $warning = ''
     if ($headerOnly -gt 0 -or ($meetings.Count -gt 0 -and $emptyContent -eq $meetings.Count)) {
         $n = if ($headerOnly -gt 0) { $headerOnly } else { $emptyContent }
-        $warning = "$n of $($meetings.Count) meetings returned no body/organizer/attendees -- Cached Exchange Mode 'Download Headers Only' keeps that content on the server, unsynced, so COM reads it empty. This is NOT a script bug. Fix in Outlook: Send/Receive > Download Preferences > 'Download Full Items', uncheck 'On Slow Connections Download Only Headers', then press F9."
+        $allEmpty = ($meetings.Count -gt 0 -and $emptyContent -eq $meetings.Count)
+        $warning = "$n of $($meetings.Count) meetings returned no body/organizer/attendees. This is NOT a script bug."
+        if ($allEmpty) {
+            # 100% empty is the signature of the GPO-enforced Outlook Object Model Guard on this
+            # machine, not Cached Exchange Mode. Changing Download Preferences does NOT fix it --
+            # do not send Dan down that path. Genuine header-only sync is partial, not total.
+            $warning += " EVERY item came back empty, which on this machine is the GPO-enforced Outlook Object Model Guard blocking programmatic access to bodies/organizer/attendees -- 'Download Full Items' will NOT fix it (already verified). Proceed with subjects/times/locations only, and paste any meeting detail that matters."
+        } else {
+            $warning += " Cached Exchange Mode 'Download Headers Only' keeps that content on the server, unsynced, so COM reads it empty. Fix in Outlook: Send/Receive > Download Preferences > 'Download Full Items', uncheck 'On Slow Connections Download Only Headers', then press F9."
+        }
     }
 
     Write-JsonResult ([ordered]@{

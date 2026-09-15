@@ -64,6 +64,23 @@ then let him steer — never silently proceed. For example:
 > Slack token lives in `C:\Users\E724101\slack-mcp\.env`; config changes only load at startup) —
 > or I can proceed with reduced context and you paste anything important.
 
+Also check two non-MCP preconditions in the same pass:
+
+- **How long since the last close.** Read the newest `EOD *.md` in `Daily Plan\GTD Daily Logs\` and
+  the newest `Daily Plan *.docx`. There is no run ledger, so these filenames are the only record. If
+  working days are missing between the newest EOD and today, say so and ask whether to backfill them
+  — a multi-day gap is otherwise invisible and silently drops those days' captures.
+- **Outlook body availability.** `Get-OutlookMeetings.ps1` (and `Get-OutlookSentItems.ps1`) return
+  `headerOnlyCount` and a `warning` when meeting bodies, organizer, and attendees come back empty.
+  Surface it to Dan rather than proceeding quietly: agendas built from empty bodies read as
+  "Auto-drafted (no meeting body/attendees available)" and are near useless. **But read which of the
+  two cases the `warning` names before repeating a fix.** When *every* item is empty — the normal
+  state on this machine — the cause is the **GPO-enforced Outlook Object Model Guard**, which no
+  Outlook setting changes; "Download Full Items" does **not** fix it (verified), so do not send Dan
+  after it. Say instead that subjects, times, and locations are all COM can give, and ask him to
+  paste any meeting detail that matters. Only a *partial* count is genuine Cached Exchange Mode, and
+  only then is the Download Preferences fix worth mentioning.
+
 Ask whether to **(a) pause so he can fix/re-auth and restart**, or **(b) proceed with the available
 sources**. If proceeding, note the skipped connector(s) explicitly in the EOD log's **Notes**
 section so the gap is on the record. Degrade gracefully — a down connector reduces context, it does
@@ -127,6 +144,15 @@ Scan **today only**:
   local Teams cache is undocumented and may not always parse.
 - **Atlassian** — Jira issues assigned to or updated by Dan today; relevant Confluence activity.
 - **Granola / Outlook** — today's meetings and notes for action items and waiting-for commitments.
+  Pull the notes with `list_notes(created_after = <today>T00:00:00Z, limit = 40)` (or
+  `recent_notes(days = 1)` for a same-day close; use `list_notes` with an explicit date for a
+  backfill). **Keep this result set** — Phase 2e and Phase 2f both reuse it rather than re-querying.
+  Three things to know: a note's `created_at` is the meeting **start in UTC**; many notes have
+  `summary: null`, which means read `get_transcript`, not "no note"; and `list_notes` **hard-caps at
+  200 notes newest-first**, with `created_after` unable to move that window — fine for a same-day or
+  few-day close, but it means a prior instance more than ~200 notes back (roughly two months here) is
+  unreachable this way. For those, check `Daily Plan\granola-index.json`, then
+  `search_notes(<title hint>, limit=400)`. Ad-hoc recordings with no calendar block exist and still count.
 - **Outlook Sent Mail** — mail Dan sent today, to catch questions / requests he is now waiting on
   a reply for. Run the bundled COM reader (defaults to today):
   ```powershell
@@ -245,11 +271,17 @@ allowed during the otherwise read-only gather.
    Dan's explicit instruction. `send_ahead_bullets` still obey the 5–10-word, max-10 rule.
 3. **Draft a full agenda for each substantive target-day meeting** (the day the plan is *for*) — gather
    context per `agenda-creator/references/context-sources.md` and produce the same agenda structure
-   `create_agenda_docx.py` expects (`title`, `send_ahead_bullets` [5–10 words, max 10],
-   `context_reviewed`, `sections[]`, `notes[]`). For recurring meetings (1:1s, standing syncs), open
-   the agenda with a **Last meeting recap** built per that reference's "Recurring meetings:
-   prior-instance & recap sourcing" procedure — chain to the prior instance's agenda `.docx` in the
-   Agendas folder plus its Granola note so open follow-ups carry forward. These become `agendas[]` and render (one per page) in
+   `create_agenda_docx.py` expects (`title`, `doc_type: "agenda"`, `send_ahead_bullets` [5–10 words,
+   max 10], `context_reviewed`, `recap_sources[]`, `sections[]`, `notes[]`). **Every** agenda opens
+   with a **Last meeting recap** built per that reference's "Recurring meetings: prior-instance &
+   recap sourcing" procedure — resolve the prior instance from the **Outlook series** (not from a
+   matching agenda filename, which drifts), correlate its Granola note by **start time** against the
+   Phase 2 note set, read `get_transcript` when the summary is null, and treat a prior agenda `.docx`
+   as a supplementary source only. Check `Daily Plan\meeting-aliases.json` first: generic subjects
+   like `Status Update` are a specific person's 1:1, and the map gives the counterpart, the agenda
+   title to use, and any tracker path. The renderer **exits 2** if the recap or its `recap_sources`
+   are missing, so pre-check the batch with `--validate-only` before rendering. These become
+   `agendas[]` and render (one per page) in
    the **Meeting Agendas** section after the Meeting Schedule, so Dan walks into today's meetings
    prepared. Fold in any stored per-meeting direction with precedence, exactly as in step 2 — a
    single captured direction produces consistent content in both the standalone send-out file and

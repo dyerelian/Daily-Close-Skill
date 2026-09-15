@@ -14,6 +14,11 @@ skill: this script imports `create_agenda_docx.py` as a module and reuses its
 OpenXML helpers (run/paragraph builders, `document_body`, the package-part writers,
 and the 5-10-word send-ahead-bullet validation). Standard library only.
 
+That shared validation includes the mandatory "Last meeting recap": a missing recap
+in ANY embedded agenda fails the whole Daily Plan render with exit 2. Pre-check each
+agenda payload with `create_agenda_docx.py --validate-only` so one unresolved meeting
+does not block the close halfway through.
+
 Run with the full interpreter path (bare `py` is broken on this machine):
     & 'C:\\Program Files\\Python312\\python.exe' create_daily_plan_docx.py --input plan.json --output "Daily Plan 2026-06-27.docx"
 """
@@ -97,11 +102,24 @@ EXAMPLE_DATA = {
         {
             "title": "1:1 with Mariyo - 2026-06-27",
             "subtitle": "Prepared agenda",
+            "doc_type": "agenda",
             "send_ahead_bullets": [
                 "Align on top priorities for this week",
                 "Review prior commitments and next steps",
             ],
             "context_reviewed": ["Prior 1:1 notes", "Granola meeting notes"],
+            "recap_sources": [
+                {
+                    "kind": "outlook_series",
+                    "status": "found",
+                    "detail": "Prior instance 2026-06-20 10:00 PT from the recurring series",
+                },
+                {
+                    "kind": "granola",
+                    "status": "found",
+                    "detail": "Note not_ExampleId00 at 2026-06-20T17:01Z (+1 min); transcript used",
+                },
+            ],
             "sections": [
                 {
                     "heading": "1. Priorities",
@@ -109,7 +127,17 @@ EXAMPLE_DATA = {
                         {"label": "My focus", "body": "Funnel one-pager and roadmap input."},
                         {"label": "Manager's focus", "body": "Ask for their top three."},
                     ],
-                }
+                },
+                {
+                    "heading": "2. Last meeting recap",
+                    "items": [
+                        {"label": "Date + source", "body": "2026-06-20, from that instance's Granola transcript."},
+                        {"label": "Recap summary", "body": "What was discussed last time."},
+                        {"label": "Open follow-ups / action items", "body": "Carried commitments, with owners."},
+                        {"label": "Decisions made", "body": "Decisions actually reached."},
+                        {"label": "Suggested talking points", "body": "Derived from last call's loose ends."},
+                    ],
+                },
             ],
         }
     ],
@@ -410,6 +438,11 @@ def main() -> int:
     try:
         data = load_data(args)
         create_docx(data, Path(args.output))
+    except ac.RecapValidationError as exc:
+        # Surfaced from an embedded agenda; keep the agenda renderer's exit code so a
+        # missing recap is distinguishable from an ordinary render failure.
+        print(f"error: recap in an embedded agenda: {exc}", file=sys.stderr)
+        return 2
     except Exception as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
