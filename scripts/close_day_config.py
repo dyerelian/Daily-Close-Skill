@@ -247,6 +247,129 @@ def validate_profile(profile: dict, strict_paths: bool = False) -> tuple[list[st
             else:
                 bindings_seen[normalized] = scope_id
 
+    planning_policy = schedule.get("planning_policy")
+    if planning_policy is not None:
+        if not isinstance(planning_policy, dict):
+            errors.append("schedule.planning_policy must be an object")
+        else:
+            def valid_clock(value: Any) -> bool:
+                return _nonempty_string(value) and bool(
+                    re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", value)
+                )
+
+            def clock_minutes(value: str) -> int:
+                hour, minute = value.split(":")
+                return int(hour) * 60 + int(minute)
+
+            focused = planning_policy.get("focused_work_windows") or {}
+            if not isinstance(focused, dict):
+                errors.append("schedule.planning_policy.focused_work_windows must be an object")
+                focused = {}
+            for scope_id, windows in focused.items():
+                label = f"schedule.planning_policy.focused_work_windows.{scope_id}"
+                if scope_id not in seen:
+                    errors.append(f"{label} references an unknown scope")
+                if not isinstance(windows, list) or not windows:
+                    errors.append(f"{label} must be a non-empty array")
+                    continue
+                parsed_windows: list[tuple[int, int]] = []
+                for window_index, window in enumerate(windows):
+                    window_label = f"{label}[{window_index}]"
+                    if not isinstance(window, dict):
+                        errors.append(f"{window_label} must be an object")
+                        continue
+                    start = window.get("start")
+                    end = window.get("end")
+                    if not valid_clock(start) or not valid_clock(end):
+                        errors.append(f"{window_label}.start and .end must use 24-hour HH:MM")
+                        continue
+                    start_minutes = clock_minutes(start)
+                    end_minutes = clock_minutes(end)
+                    if end_minutes <= start_minutes:
+                        errors.append(f"{window_label}.end must be later than .start")
+                        continue
+                    parsed_windows.append((start_minutes, end_minutes))
+                parsed_windows.sort()
+                for previous, current in zip(parsed_windows, parsed_windows[1:]):
+                    if current[0] < previous[1]:
+                        errors.append(f"{label} windows must not overlap")
+                        break
+
+            daytime = planning_policy.get("daytime_window") or {}
+            daytime_bounds: tuple[int, int] | None = None
+            if not isinstance(daytime, dict):
+                errors.append("schedule.planning_policy.daytime_window must be an object")
+            else:
+                start = daytime.get("start")
+                end = daytime.get("end")
+                if not valid_clock(start) or not valid_clock(end):
+                    errors.append(
+                        "schedule.planning_policy.daytime_window.start and .end must use 24-hour HH:MM"
+                    )
+                elif clock_minutes(end) <= clock_minutes(start):
+                    errors.append("schedule.planning_policy.daytime_window.end must be later than .start")
+                else:
+                    daytime_bounds = (clock_minutes(start), clock_minutes(end))
+                maximum = daytime.get("max_total_minutes")
+                if not isinstance(maximum, int) or isinstance(maximum, bool) or maximum <= 0:
+                    errors.append(
+                        "schedule.planning_policy.daytime_window.max_total_minutes must be a positive integer"
+                    )
+                elif daytime_bounds and maximum > daytime_bounds[1] - daytime_bounds[0]:
+                    errors.append(
+                        "schedule.planning_policy.daytime_window.max_total_minutes exceeds the window duration"
+                    )
+
+            if daytime_bounds:
+                for scope_id, windows in focused.items():
+                    if not isinstance(windows, list):
+                        continue
+                    for window in windows:
+                        if not isinstance(window, dict):
+                            continue
+                        start = window.get("start")
+                        end = window.get("end")
+                        if not valid_clock(start) or not valid_clock(end):
+                            continue
+                        bounds = (clock_minutes(start), clock_minutes(end))
+                        if bounds[0] < daytime_bounds[1] and daytime_bounds[0] < bounds[1]:
+                            errors.append(
+                                f"schedule.planning_policy.focused_work_windows.{scope_id} "
+                                "must not overlap daytime_window"
+                            )
+
+            rules = planning_policy.get("daytime_rules") or []
+            if not isinstance(rules, list) or not rules:
+                errors.append("schedule.planning_policy.daytime_rules must be a non-empty array")
+            else:
+                rule_keys: set[tuple[str, str]] = set()
+                allowed_work_types = {"focused_work", "check_in", "personal"}
+                for rule_index, rule in enumerate(rules):
+                    label = f"schedule.planning_policy.daytime_rules[{rule_index}]"
+                    if not isinstance(rule, dict):
+                        errors.append(f"{label} must be an object")
+                        continue
+                    scope_id = rule.get("scope_id")
+                    work_type = rule.get("work_type")
+                    maximum = rule.get("max_item_minutes")
+                    if scope_id not in seen:
+                        errors.append(f"{label}.scope_id references an unknown scope")
+                    if work_type not in allowed_work_types:
+                        errors.append(
+                            f"{label}.work_type must be focused_work, check_in, or personal"
+                        )
+                    if not isinstance(maximum, int) or isinstance(maximum, bool) or maximum <= 0:
+                        errors.append(f"{label}.max_item_minutes must be a positive integer")
+                    key = (str(scope_id), str(work_type))
+                    if key in rule_keys:
+                        errors.append(f"duplicate daytime planning rule: {scope_id}/{work_type}")
+                    rule_keys.add(key)
+
+            if planning_policy.get("calendar_commitments") != "show_as_fixed_exceptions":
+                errors.append(
+                    "schedule.planning_policy.calendar_commitments must be show_as_fixed_exceptions"
+                )
+
     routing = profile.get("routing") or {}
     if routing.get("unclassified_policy") != "pause_and_ask":
         errors.append("routing.unclassified_policy must be pause_and_ask")

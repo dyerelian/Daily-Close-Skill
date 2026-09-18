@@ -8,7 +8,8 @@
   },
   "schedule": {
     "workdays": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-    "close_out_time": "17:00"
+    "close_out_time": "17:00",
+    "planning_policy": null
   },
   "scopes": [
     {

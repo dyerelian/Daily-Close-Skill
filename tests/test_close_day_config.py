@@ -79,6 +79,37 @@ def profile(workspace: Path) -> dict:
 
 
 class ProfileTests(unittest.TestCase):
+    def test_planning_policy_validates_scope_windows_and_limits(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            value = profile(Path(temporary))
+            value["schedule"]["planning_policy"] = {
+                "focused_work_windows": {
+                    "acme": [
+                        {"start": "06:00", "end": "09:00"},
+                        {"start": "21:00", "end": "23:00"},
+                    ]
+                },
+                "daytime_window": {
+                    "start": "09:00",
+                    "end": "21:00",
+                    "max_total_minutes": 60,
+                },
+                "daytime_rules": [
+                    {"scope_id": "acme", "work_type": "check_in", "max_item_minutes": 15},
+                    {"scope_id": "personal", "work_type": "personal", "max_item_minutes": 30},
+                ],
+                "calendar_commitments": "show_as_fixed_exceptions",
+            }
+            errors, _ = validate_profile(value)
+            self.assertEqual(errors, [])
+
+            value["schedule"]["planning_policy"]["focused_work_windows"]["missing"] = [
+                {"start": "10:00", "end": "11:00"}
+            ]
+            errors, _ = validate_profile(value)
+            self.assertTrue(any("unknown scope" in error for error in errors))
+            self.assertTrue(any("must not overlap daytime_window" in error for error in errors))
+
     def test_validation_and_registry_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
