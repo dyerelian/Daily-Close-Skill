@@ -32,6 +32,21 @@ without an explicit user request.
   Jira, CRM, and email-delivery permissions.
 - `enabled_modules` and `modules`: provider and capability configuration.
 
+### Planning availability
+
+Use optional `schedule.planning_policy` when a Daily Plan must respect scope-specific work hours.
+`focused_work_windows` maps scope ids to non-overlapping same-day `start`/`end` windows in `HH:MM`.
+`daytime_window` defines a shared daytime range and `max_total_minutes`. Each `daytime_rules` entry
+allows one `scope_id` and `work_type` combination with a positive `max_item_minutes` limit. Supported
+work types are `focused_work`, `check_in`, and `personal`. Set `calendar_commitments` to
+`show_as_fixed_exceptions` so booked meetings remain visible outside preferred work windows.
+
+When the policy is enabled, every `sections.tasks` item in the close payload must contain `text`,
+`scope_id`, timezone-aware ISO-8601 `start` and `end`, and `work_type`. Every meeting must contain
+timezone-aware `start` and `end`. Artifact preview rejects tasks outside the configured windows,
+daytime limit violations, and task overlaps with meetings or other planned tasks. Meetings are
+fixed exceptions to preferred work windows, not permission to schedule adjacent discretionary work.
+
 For `jira-sweep`, configure one or more objects containing `name`, `jql`, `scope_id`, and `limit`.
 Optional lifecycle writes live under `jira-sweep.writes`: enable them only with scope-bound project
 keys, issue types, allowed operations, mandatory duplicate checks, and

@@ -95,6 +95,12 @@ Done sequence from `references/gtd-google-sheet.md`: Capture, Clarify, Organize,
 Ask only about unresolved planned priorities that evidence cannot settle, manual captures, and
 next-workday priorities.
 
+When `schedule.planning_policy` is configured, build the Daily Plan from structured timed tasks and
+honor its scope-specific focused-work windows, daytime work-type and duration limits, and aggregate
+daytime cap. Treat booked meetings as fixed exceptions, but never use a daytime meeting to justify
+adjacent discretionary work. Include `text`, `scope_id`, timezone-aware `start` and `end`, and
+`work_type` on every scheduled task so artifact preview can enforce the policy deterministically.
+
 Put actions estimated under two minutes in a **Quick Wins** review. Archive items the user confirms
 were completed; route any deferred item normally. Never send a message or perform an external task
 merely because it is a quick win.
@@ -182,6 +188,11 @@ Plan renderer and use its configurable page-number footer. When GTD is configure
 **Open full GTD list** link from `spreadsheet_url` (or `spreadsheet_id`) and render it before
 priorities in Markdown, DOCX, and concise email. Render Meeting Insights before that link. The
 Daily Big 3 is a curated focus view and must not create fake due dates in GTD.
+
+When people outreach is enabled and the approved plan contains outreach names,
+`create_close_artifacts.py --approved` validates them against the deterministic preview and
+commits the selection after all artifacts and exports succeed. Do not run a separate outreach
+commit; a later close must see the consumed rotation before selecting contacts.
 
 When `email-delivery` is enabled, prepare the deterministic envelope with
 `scripts/prepare_close_email.py` only after the approved artifacts exist and the Daily Plan DOCX has

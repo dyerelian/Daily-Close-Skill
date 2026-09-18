@@ -11,7 +11,25 @@
   },
   "schedule": {
     "workdays": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-    "close_out_time": "17:00"
+    "close_out_time": "23:00",
+    "planning_policy": {
+      "focused_work_windows": {
+        "example-org": [
+          {"start": "06:00", "end": "09:00"},
+          {"start": "21:00", "end": "23:00"}
+        ]
+      },
+      "daytime_window": {
+        "start": "09:00",
+        "end": "21:00",
+        "max_total_minutes": 60
+      },
+      "daytime_rules": [
+        {"scope_id": "example-org", "work_type": "check_in", "max_item_minutes": 15},
+        {"scope_id": "personal", "work_type": "personal", "max_item_minutes": 30}
+      ],
+      "calendar_commitments": "show_as_fixed_exceptions"
+    }
   },
   "scopes": [
     {

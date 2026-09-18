@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import unittest
@@ -15,13 +16,178 @@ from create_close_artifacts import (  # noqa: E402
     eod_markdown,
     export_paths,
     plan_markdown,
+    prepare_people_outreach_selection,
+    validate_planning_policy,
     validate_required_takeaways,
 )
 from close_payload import normalize_payload  # noqa: E402
+from people_outreach import commit_selection, select_people  # noqa: E402
 from propose_crm_from_mail import normalized_email_payload  # noqa: E402
 
 
 class ArtifactTests(unittest.TestCase):
+    def test_planning_fixture_satisfies_configured_windows(self) -> None:
+        payload = json.loads(
+            (ROOT / "tests" / "fixtures" / "planning_payload_sample.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        profile = {
+            "owner": {"timezone": "America/Los_Angeles"},
+            "schedule": {
+                "planning_policy": {
+                    "focused_work_windows": {
+                        "mylanguage": [
+                            {"start": "06:00", "end": "09:00"},
+                            {"start": "21:00", "end": "23:00"},
+                        ]
+                    },
+                    "daytime_window": {
+                        "start": "09:00",
+                        "end": "21:00",
+                        "max_total_minutes": 60,
+                    },
+                    "daytime_rules": [
+                        {
+                            "scope_id": "mylanguage",
+                            "work_type": "check_in",
+                            "max_item_minutes": 15,
+                        },
+                        {
+                            "scope_id": "personal",
+                            "work_type": "personal",
+                            "max_item_minutes": 30,
+                        },
+                    ],
+                    "calendar_commitments": "show_as_fixed_exceptions",
+                }
+            },
+        }
+        validate_planning_policy(payload, profile)
+
+    def test_planning_policy_enforces_windows_limits_and_calendar_exceptions(self) -> None:
+        profile = {
+            "owner": {"timezone": "America/Los_Angeles"},
+            "schedule": {
+                "planning_policy": {
+                    "focused_work_windows": {
+                        "acme": [
+                            {"start": "06:00", "end": "09:00"},
+                            {"start": "21:00", "end": "23:00"},
+                        ]
+                    },
+                    "daytime_window": {
+                        "start": "09:00",
+                        "end": "21:00",
+                        "max_total_minutes": 60,
+                    },
+                    "daytime_rules": [
+                        {"scope_id": "acme", "work_type": "check_in", "max_item_minutes": 15},
+                        {"scope_id": "personal", "work_type": "personal", "max_item_minutes": 30},
+                    ],
+                    "calendar_commitments": "show_as_fixed_exceptions",
+                }
+            },
+        }
+        payload = {
+            "target_date": "2026-09-18",
+            "sections": {
+                "tasks": [
+                    {
+                        "text": "Draft customer response",
+                        "scope_id": "acme",
+                        "work_type": "focused_work",
+                        "start": "2026-09-18T06:30:00-07:00",
+                        "end": "2026-09-18T08:00:00-07:00",
+                    },
+                    {
+                        "text": "Check replies",
+                        "scope_id": "acme",
+                        "work_type": "check_in",
+                        "start": "2026-09-18T12:00:00-07:00",
+                        "end": "2026-09-18T12:15:00-07:00",
+                    },
+                    {
+                        "text": "Personal administration",
+                        "scope_id": "personal",
+                        "work_type": "personal",
+                        "start": "2026-09-18T17:30:00-07:00",
+                        "end": "2026-09-18T18:00:00-07:00",
+                    },
+                ],
+                "meetings": [
+                    {
+                        "title": "Booked customer meeting",
+                        "scope_id": "acme",
+                        "start": "2026-09-18T10:00:00-07:00",
+                        "end": "2026-09-18T11:00:00-07:00",
+                    }
+                ],
+            },
+        }
+        validate_planning_policy(payload, profile)
+
+        invalid = payload.copy()
+        invalid["sections"] = {**payload["sections"], "tasks": [dict(payload["sections"]["tasks"][0])]}
+        invalid["sections"]["tasks"][0].update(
+            {
+                "start": "2026-09-18T13:00:00-07:00",
+                "end": "2026-09-18T14:00:00-07:00",
+            }
+        )
+        with self.assertRaisesRegex(ValueError, "not allowed"):
+            validate_planning_policy(invalid, profile)
+
+    def test_planning_policy_rejects_daytime_overage_and_meeting_overlap(self) -> None:
+        profile = {
+            "owner": {"timezone": "America/Los_Angeles"},
+            "schedule": {
+                "planning_policy": {
+                    "focused_work_windows": {"acme": [{"start": "06:00", "end": "09:00"}]},
+                    "daytime_window": {"start": "09:00", "end": "21:00", "max_total_minutes": 30},
+                    "daytime_rules": [
+                        {"scope_id": "personal", "work_type": "personal", "max_item_minutes": 30}
+                    ],
+                    "calendar_commitments": "show_as_fixed_exceptions",
+                }
+            },
+        }
+        payload = {
+            "target_date": "2026-09-18",
+            "sections": {
+                "tasks": [
+                    {
+                        "text": "First personal task",
+                        "scope_id": "personal",
+                        "work_type": "personal",
+                        "start": "2026-09-18T12:00:00-07:00",
+                        "end": "2026-09-18T12:20:00-07:00",
+                    },
+                    {
+                        "text": "Second personal task",
+                        "scope_id": "personal",
+                        "work_type": "personal",
+                        "start": "2026-09-18T13:00:00-07:00",
+                        "end": "2026-09-18T13:20:00-07:00",
+                    },
+                ]
+            },
+        }
+        with self.assertRaisesRegex(ValueError, "totals 40 minutes"):
+            validate_planning_policy(payload, profile)
+
+        payload["sections"]["tasks"] = [payload["sections"]["tasks"][0]]
+        payload["sections"]["meetings"] = [
+            {
+                "title": "Personal appointment",
+                "scope_id": "personal",
+                "start": "2026-09-18T12:10:00-07:00",
+                "end": "2026-09-18T12:30:00-07:00",
+            }
+        ]
+        with self.assertRaisesRegex(ValueError, "overlaps calendar commitment"):
+            validate_planning_policy(payload, profile)
+
     def test_legacy_top_level_sections_are_normalized(self) -> None:
         payload = {
             "date": "2026-08-07",
@@ -242,6 +408,73 @@ class ArtifactTests(unittest.TestCase):
             validate_required_takeaways(payload, profile)
         payload["takeaways"]["well"].append("three")
         validate_required_takeaways(payload, profile)
+
+    def test_approved_artifact_outreach_consumes_rotation_for_later_plans(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            people_path = root / "people.json"
+            state_path = root / "people-state.json"
+            people_path.write_text(
+                '{"schema_version":1,"people":["Ben","Jen","Jason","Elle"]}',
+                encoding="utf-8",
+            )
+            profile = {
+                "features": {
+                    "people_outreach": {
+                        "enabled": True,
+                        "daily_count": 2,
+                        "selection_policy": "round_robin",
+                        "duplicate_policy": "count_entries",
+                        "list_path": str(people_path),
+                        "state_path": str(state_path),
+                    }
+                }
+            }
+            first_payload = {
+                "target_date": "2026-09-04",
+                "sections": {"people_outreach": [{"text": "Ben"}, {"text": "Jen"}]},
+            }
+            first = prepare_people_outreach_selection(first_payload, profile)
+            self.assertEqual(first["people"], ["Ben", "Jen"])
+            commit_selection(profile, first, approved=True)
+
+            second_payload = {
+                "target_date": "2026-09-05",
+                "sections": {"people_outreach": [{"text": "Jason"}, {"text": "Elle"}]},
+            }
+            second = prepare_people_outreach_selection(second_payload, profile)
+            self.assertEqual(second["people"], ["Jason", "Elle"])
+            self.assertEqual(second["indices"], [2, 3])
+
+    def test_artifact_outreach_rejects_stale_displayed_names(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            people_path = root / "people.json"
+            state_path = root / "people-state.json"
+            people_path.write_text(
+                '{"schema_version":1,"people":["Ben","Jen","Jason","Elle"]}',
+                encoding="utf-8",
+            )
+            profile = {
+                "features": {
+                    "people_outreach": {
+                        "enabled": True,
+                        "daily_count": 2,
+                        "selection_policy": "round_robin",
+                        "duplicate_policy": "count_entries",
+                        "list_path": str(people_path),
+                        "state_path": str(state_path),
+                    }
+                }
+            }
+            consumed = select_people(profile, "2026-09-04", {})
+            commit_selection(profile, consumed, approved=True)
+            stale_payload = {
+                "target_date": "2026-09-05",
+                "sections": {"people_outreach": ["Ben", "Jen"]},
+            }
+            with self.assertRaisesRegex(ValueError, "deterministic selection"):
+                prepare_people_outreach_selection(stale_payload, profile)
 
 
 if __name__ == "__main__":
