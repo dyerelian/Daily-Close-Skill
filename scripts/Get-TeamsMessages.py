@@ -180,12 +180,30 @@ def collect_messages(wdb, day_start_ms: float, day_end_ms: float, body_max: int)
     return messages
 
 
+def configure_stdout() -> None:
+    """Force UTF-8 on stdout so an emoji in a chat can't kill the run.
+
+    Windows pipes default to cp1252, and a single emoji used to raise
+    UnicodeEncodeError mid-write, costing the whole day's sweep.
+    """
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass  # older/replaced stdout: the write_result fallback still covers us
+
+
 def write_result(obj: dict, out_file: str | None) -> None:
     text = json.dumps(obj, indent=2, ensure_ascii=False)
-    sys.stdout.write(text + "\n")
+    # Write the file FIRST -- it is explicitly UTF-8, so it cannot fail on console
+    # encoding. A terminal that can't render a character must not cost us the data.
     if out_file:
         # UTF-8 without BOM, matching the other close-day readers.
         Path(out_file).write_text(text, encoding="utf-8")
+    try:
+        sys.stdout.write(text + "\n")
+    except UnicodeEncodeError:
+        # Last resort: escape non-ASCII rather than lose the output entirely.
+        sys.stdout.write(json.dumps(obj, indent=2, ensure_ascii=True) + "\n")
 
 
 def main() -> int:
@@ -195,6 +213,8 @@ def main() -> int:
     parser.add_argument("--src", default=DEFAULT_SRC, help="Teams IndexedDB LevelDB directory.")
     parser.add_argument("--body-max", type=int, default=1500, help="Truncate each body to N chars.")
     args = parser.parse_args()
+
+    configure_stdout()
 
     if args.date:
         try:
